@@ -4,11 +4,9 @@ class QAcceptor;
 class QChannelManager;
 #include <map>
 
-//todo 得派生一个定时器来检查正在监听的有多少,如果为0则扯淡了。。
 class QAcceptor
 {
 #pragma region Accept
-	// 添加自定义事件，告诉联接已经接受
 	class AcceptHandler: public IIOCPHandler
 	{
 	public:
@@ -29,7 +27,6 @@ class QAcceptor
 #pragma endregion 
 
 public:
-	// Listen,然后 调用 m_oAcceptEventQueueService 的StartService
 	bool StartAcceptor (QChannelManager*pMgr, uint16_t nPort, const char * szIP ,uint32_t nProtocolType,uint32_t nMaxMsgSize);
 	void DestroyAcceptor();
 
@@ -44,8 +41,7 @@ private:
 
 private:
 	SOCKET  m_hListenSocket;
-	uint32_t m_nProtocolType;
 	uint32_t m_nMaxMsgSize;
-	std::map<AcceptHandler*,AcceptHandlerOverLapped*> m_needDelete;
-	QChannelManager * m_pMgr;
+	std::map<AcceptHandler*, AcceptHandlerOverLapped*> m_needDelete;
+	QChannelManager* m_pMgr;
 };

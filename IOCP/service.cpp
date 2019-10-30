@@ -31,7 +31,8 @@ void QEngIOCPEventQueueService::poll(uint32_t timeout)
 		BOOL ret = ::GetQueuedCompletionStatus(m_hIOCP, &nIOBytes, &pKey, (LPOVERLAPPED*)&pOverlap, timeout);
 		if (NULL != pOverlap)
 		{
-			printf("GetQueuedCompletionStatus error : %d\n", GetLastError());
+			if (GetLastError() != 0)
+				printf("GetQueuedCompletionStatus error : %d\n", GetLastError());
 
 			if (ret)
 				pOverlap->m_pHandler->HandleComplete(pKey, (size_t)nIOBytes);
@@ -125,7 +126,7 @@ bool QEngIOCPEventQueueService::BindHandleToIocp( HANDLE hHandle )
 	return (NULL != ::CreateIoCompletionPort(hHandle, m_hIOCP, 0, 1));
 }
 
-bool QEngIOCPEventQueueService::PostRequest( DWORD ,void * pKey,LPOVERLAPPED ol )
+bool QEngIOCPEventQueueService::PostRequest(DWORD, void * pKey, LPOVERLAPPED ol)
 {
 	return PostQueuedCompletionStatus(m_hIOCP, 0, (ULONG_PTR)pKey, ol);
 }

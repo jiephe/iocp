@@ -160,7 +160,6 @@
     <ClInclude Include="iocp_server.h" />
     <ClInclude Include="itf_tcpengine.h" />
     <ClInclude Include="limit_define.h" />
-    <ClInclude Include="lock.h" />
     <ClInclude Include="overlapped.h" />
     <ClInclude Include="service.h" />
   </ItemGroup>

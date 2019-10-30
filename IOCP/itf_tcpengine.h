@@ -69,21 +69,15 @@ public:
 	*/
 	virtual bool WriteData(uint32_t nConnId,char *pData,uint32_t nBytes)=0;
 	virtual bool PostWriteDataReq(uint32_t nConnId,char *pData,uint32_t nBytes)=0;
-	virtual void PostCloseConnReq(uint32_t nConnId,bool bWaitingLastWriteDataFinish)=0;
-
-	virtual int  rand()=0;
 };
 
 struct ITcpEngine;
 struct IEngTcpSink
 {
 	virtual bool OnAccepted		(uint32_t nConnId) = 0;
-	virtual void OnClose			(uint32_t nConnId) = 0;
-	virtual void OnData			(uint32_t nConnId, char *pData, DWORD dwByte) = 0;
-	virtual bool OnIdle			(uint32_t nConnId, uint32_t nIdleMS) = 0;
-	virtual void OnConnect(bool isOK, uint32_t nConnId,void *pAttData)=0;
-
-	virtual void OnPulse			( uint64_t  nMsPassedAfterStart ) = 0;
+	virtual void OnRead			(uint32_t nConnId, char *pData, int32_t iread) = 0;
+	virtual void OnWrite		(uint32_t nConnId, int32_t iwrite) = 0;
+	virtual void OnConnect		(bool isOK, uint32_t nConnId,void *pAttData)=0;
 };
 /*
  *	
@@ -99,9 +93,11 @@ public:
 		因此 SetListenAddr 是必须调用的，而且只有最后一次调用有效，此外只有在StartEngine调用之前有效
 	 */
 	virtual bool SetListenAddr(uint32_t nMaxMsgSize,uint16_t nPort,const char * szIp=0,uint8_t nProtocol=0x04)=0;
-	virtual bool StartEngine ( IEngTcpSink *tcpSink,uint32_t nPulseMS=0)=0;
+	virtual bool StartEngine ( IEngTcpSink *tcpSink)=0;
 	virtual void Loop() = 0;
 	virtual void DestoryEngine() = 0;
+	virtual void CloseSession(uint32_t connid) = 0;
+	virtual void write_data(uint32_t session_id, char* data, uint32_t size) = 0;
 	virtual bool ConnectTo ( const  char * szIp, uint16_t nPort,  void *pAttData,uint32_t nMaxMsgSize, uint8_t nProtocol = 0x04 )= 0;
 
 	// 处理tcp 收发的线程
@@ -112,6 +108,6 @@ public:
 };
 
 ITcpEngine *		CreateTcpEngine();
-IEngIOCPService *	CreateIOCPService();
+
 
 

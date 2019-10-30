@@ -9,7 +9,6 @@ bool QAcceptor::StartAcceptor ( QChannelManager*pMgr, uint16_t nPort, const char
 {
 	m_pMgr=pMgr;
 	m_nMaxMsgSize		= nMaxMsgSize;
-	m_nProtocolType	= nProtocolType;
 
 	m_hListenSocket = WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
 	if ( INVALID_SOCKET == m_hListenSocket ) return false;
@@ -126,7 +125,7 @@ void QAcceptor::OnAccpetFinish ( AcceptHandler*pHandler )
 		&remoteLen
 	);
 
-	m_pMgr->OnAccepted( pHandler->m_hSocket, local, remote, m_nProtocolType, m_nMaxMsgSize );
+	m_pMgr->OnAccepted( pHandler->m_hSocket, local, remote, m_nMaxMsgSize );
 }
 
 QAcceptor::QAcceptor()
@@ -140,25 +139,21 @@ void QAcceptor::DestroyAcceptor()
 
 QAcceptor::~QAcceptor()
 {
-	std::map<AcceptHandler*, AcceptHandlerOverLapped*>::iterator ik = m_needDelete.begin();
+	auto ik = m_needDelete.begin();
 	for ( ; ik != m_needDelete.end(); ++ik )
 	{
 		AcceptHandler *p = ik->first;
 		if ( INVALID_SOCKET != p->m_hSocket )
-		{
 			closesocket ( p->m_hSocket );
-		}
 		ik->second->Destroy();
 	}
 }
 
 void QAcceptor::RemoveFromMap ( AcceptHandler*p )
 {
-	std::map<AcceptHandler*, AcceptHandlerOverLapped*>::iterator ik = m_needDelete.find ( p );
+	auto ik = m_needDelete.find ( p );
 	if ( ik != m_needDelete.end() )
-	{
 		m_needDelete.erase ( ik );
-	}
 }
 
 void QAcceptor::AcceptHandler::HandleComplete ( ULONG_PTR , size_t  )

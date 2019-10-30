@@ -29,14 +29,26 @@ void CIocpServer::start(accept_cb cb)
 {
 	accept_cb_ = cb;
 
-	iocp_engine_->StartEngine(this, 1000);
+	iocp_engine_->StartEngine(this);
 
 	iocp_engine_->Loop();
 }
 
-void CIocpServer::read_start(uint64_t session_id, read_cb cb)
+void CIocpServer::session_read_start(uint32_t session_id, read_cb cb)
 {
 	map_read_cb_[session_id] = cb;
+}
+
+void CIocpServer::session_write_data(uint32_t session_id, char* data, uint32_t size, write_cb cb)
+{
+	map_wirte_cb_[session_id] = cb;
+
+	iocp_engine_->write_data(session_id, data, size);
+}
+
+void CIocpServer::session_close(uint32_t session_id)
+{
+	iocp_engine_->CloseSession(session_id);
 }
 
 void CIocpServer::stop()
@@ -51,27 +63,19 @@ bool CIocpServer::OnAccepted(uint32_t nConnId)
 
 	return true;
 }
-void CIocpServer::OnClose(uint32_t nConnId)
-{
-	int a = 1;
-}
-void CIocpServer::OnData(uint32_t nConnId, char *pData, DWORD dwBytes)
+void CIocpServer::OnRead(uint32_t nConnId, char *pData, int32_t iread)
 {
 	auto itor = map_read_cb_.find(nConnId);
 	if (itor != map_read_cb_.end())
-		(itor->second)(this, pData, dwBytes);
+		(itor->second)(this, nConnId, pData, iread);
 }
-bool CIocpServer::OnIdle(uint32_t nConnId, uint32_t nIdleMS)
+void  CIocpServer::OnWrite(uint32_t nConnId, int32_t iwrite)
 {
-	int a = 1;
-	return true;
+	auto itor = map_wirte_cb_.find(nConnId);
+	if (itor != map_wirte_cb_.end())
+		(itor->second)(this, nConnId, iwrite);
 }
 void CIocpServer::OnConnect(bool isOK, uint32_t nConnId, void *pAttData)
 {
 	int a = 1;
-}
-void CIocpServer::OnPulse(uint64_t  nMsPassedAfterStart)
-{
-	int a = 1;
-	printf("onPulse %u\n", GetTickCount());
 }

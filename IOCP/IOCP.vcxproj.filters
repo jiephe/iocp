@@ -62,9 +62,6 @@
     <ClInclude Include="limit_define.h">
       <Filter>源文件</Filter>
     </ClInclude>
-    <ClInclude Include="lock.h">
-      <Filter>源文件</Filter>
-    </ClInclude>
     <ClInclude Include="overlapped.h">
       <Filter>源文件</Filter>
     </ClInclude>

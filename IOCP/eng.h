@@ -29,12 +29,14 @@ public:
 
 public:
 	virtual bool SetListenAddr(uint32_t nMaxMsgSize,uint16_t nPort,const char * szIp=0,uint8_t nProtocol=0x04);
-	virtual bool StartEngine ( IEngTcpSink *tcpSink,uint32_t nPulseMS=0);
+	virtual bool StartEngine ( IEngTcpSink *tcpSink);
 	virtual void Loop();
 	virtual void DestoryEngine() ;
 	virtual bool ConnectTo ( const  char * szIp, uint16_t nPort,  void *pAttData,uint32_t nMaxMsgSize, uint8_t nProtocol = 0x04 ) ;
 	virtual IEngIOCPService * GetIOCPService();
 	virtual IEngChannelManager * GetChannelMgr();
+	virtual void CloseSession(uint32_t connid);
+	virtual void write_data(uint32_t session_id, char* data, uint32_t size);
 
 public:
 	static void timer_callback(IocpTimer* pTimer);
@@ -51,7 +53,6 @@ private:
 		SOCKADDR_IN m_localAddr;
 
 		SOCKET m_hSocket;
-		uint32_t m_nProtocolType;
 		uint32_t m_nMaxMsgSize;
 
 		QChannelManager * m_pChnMgr;
@@ -62,18 +63,4 @@ private:
 	};	
 	typedef  TOverlappedWrapper<Connector> ConnectorOverLapped;
 #pragma endregion Connector
-
-#pragma region 定时器
-	class EngTimer:public IEngEventHandler
-	{
-		EngTimer();
-		QEngine *m_pEng;
-		ULONGLONG  m_nNow;
-	public:
-		EngTimer(QEngine*pEng){ m_nNow=GetTickCount64(); m_pEng=pEng;}
-		virtual void Fire() { m_pEng->m_pChannelSink->OnPulse(m_nNow-GetTickCount64()); }
-		virtual void HandleError(){}
-		virtual void Destroy(){delete this;}
-	};
-#pragma endregion 定时器
 };
