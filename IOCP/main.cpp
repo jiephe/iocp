@@ -5,7 +5,7 @@ void OnRead(CIocpServer* iocp, char* data, int32_t size)
 
 }
 
-void OnAccept(CIocpServer* iocp, uint64_t session_id)
+void OnAccept(CIocpServer* iocp, uint32_t session_id)
 {
 	iocp->read_start(session_id, OnRead);
 }

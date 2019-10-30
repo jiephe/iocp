@@ -21,7 +21,7 @@ QChannelManager::AppendSend::AppendSend()
 {
 }
 
-bool QChannelManager::AppendSend::AppendBuffer ( uint64_t nConnId, char *pData, uint32_t nBytes1 )
+bool QChannelManager::AppendSend::AppendBuffer ( uint32_t nConnId, char *pData, uint32_t nBytes1 )
 {
 	size_t nBytes = (size_t)nBytes1;
 	m_nConnId = nConnId;
@@ -95,7 +95,6 @@ bool QChannel::StartWrite()
 		/*
 		 *	没有要发送的数据了
 		 *	,如果之前要求关闭，则现在可以了
-		 assert()m_channelMap[]nConnId==pCh;
 		 */
 		if ( m_isAbortRead )
 		{
@@ -150,8 +149,7 @@ void QChannel::OnIOError ( bool /*ToWriteError*/ )
 	if ( ( !m_isInWritting ) && ( !m_isInReading ) && ( !m_isCloseHasNotified ) && ( !m_isConnectted ) )
 	{
 		m_isCloseHasNotified = true;
-
-		m_pMgr->OnConnClosed ( m_nConnId, this );
+		m_pMgr->start_close_timer();
 	}
 }
 
@@ -171,8 +169,7 @@ bool QChannel::StartRead()
 	if ( m_isInReading ) return true;
 
 	RecvHandlerOverLapped *p = new RecvHandlerOverLapped();
-	assert ( p );
-	p->m_pMgr = this->m_pMgr;
+	p->m_pMgr = m_pMgr;
 
 	/*
 	 *	终于找到bug了。
@@ -185,8 +182,7 @@ bool QChannel::StartRead()
 	p->m_recvBuff.buf = pBuff->buf;
 	p->m_recvBuff.len = pBuff->len;
 	p->m_nId = m_nConnId;
-	UINT uRet =  WSARecv ( m_hSocket, &p->m_recvBuff, 1, &p->m_dwRecvBytes, &p->m_uRecvFlags,
-								  &p->m_overlap, NULL );
+	UINT uRet =  WSARecv ( m_hSocket, &p->m_recvBuff, 1, &p->m_dwRecvBytes, &p->m_uRecvFlags, &p->m_overlap, NULL );
 	if ( uRet == SOCKET_ERROR )
 	{
 		int nErr = WSAGetLastError();
@@ -200,7 +196,6 @@ bool QChannel::StartRead()
 
 	++m_info.readCall ;
 	m_isInReading = true;
-
 	return true;
 }
 
@@ -388,7 +383,7 @@ bool QChannel::HandleProtocol()
 
 		if ( pBuf->len >= dwMsgSize )
 		{
-			m_pMgr->m_pChannelSink->OnData ( m_nConnId, pBuf->buf, dwMsgSize , &m_info );
+			m_pMgr->m_pChannelSink->OnData ( m_nConnId, pBuf->buf, dwMsgSize);
 		}
 		else
 		{
@@ -396,7 +391,7 @@ bool QChannel::HandleProtocol()
 			assert ( pTmp );
 			memset(pTmp, 0, (size_t)dwMsgSize);
 			m_recvBuff.NextData ( dwMsgSize, pTmp );
-			m_pMgr->m_pChannelSink->OnData ( m_nConnId, pTmp, dwMsgSize , &m_info );
+			m_pMgr->m_pChannelSink->OnData ( m_nConnId, pTmp, dwMsgSize);
 
 			delete [] pTmp;
 		}
@@ -448,7 +443,7 @@ bool QChannel::IsValid()
 		return false;
 }
 
-void QChannel::ResetChannel ( SOCKET hSocket, uint64_t nConnId, SOCKADDR_IN *local, SOCKADDR_IN *remote, uint32_t nProtocolType, uint32_t nMaxMsgSize, bool isClient )
+void QChannel::ResetChannel ( SOCKET hSocket, uint32_t nConnId, SOCKADDR_IN *local, SOCKADDR_IN *remote, uint32_t nProtocolType, uint32_t nMaxMsgSize, bool isClient )
 {
 	m_isConnectted =		true;
 
@@ -549,7 +544,7 @@ void QChannel::RecvHandler::Destroy()
 	delete this;
 }
 
-bool QChannelManager::PostWriteDataReq ( uint64_t nConnId, char *pData, uint32_t nBytes )
+bool QChannelManager::PostWriteDataReq ( uint32_t nConnId, char *pData, uint32_t nBytes )
 {
 	AppendSendOverLapped * p = new AppendSendOverLapped();
 	assert ( p );
@@ -565,19 +560,14 @@ bool QChannelManager::PostWriteDataReq ( uint64_t nConnId, char *pData, uint32_t
 	return true;
 }
 
-void QChannelManager::HandleWriteData ( uint64_t nConnId, char *pData, uint32_t nBytes )
+void QChannelManager::HandleWriteData ( uint32_t nConnId, char *pData, uint32_t nBytes )
 {
-	QChannel *pChn = FindChannel ( nConnId );
+	QChannel* pChn = (QChannel*) nConnId;
 	if ( pChn )
 		pChn->HandleWriteData ( pData, nBytes );
 }
 
-bool QChannelManager::IsValidConn ( uint64_t nConnId )
-{
-	return ( NULL != FindChannel ( nConnId ) );
-}
-
-void QChannelManager::PostCloseConnReq ( uint64_t nConnId, bool bWaitingLastWriteDataFinish )
+void QChannelManager::PostCloseConnReq ( uint32_t nConnId, bool bWaitingLastWriteDataFinish )
 {
 	CloseChannelOverLapped *p = new CloseChannelOverLapped();
 	assert ( p );
@@ -587,28 +577,11 @@ void QChannelManager::PostCloseConnReq ( uint64_t nConnId, bool bWaitingLastWrit
 	m_pChannelService->PostRequest ( 0, ( void* ) nConnId, &p->m_overlap );
 }
 
-void QChannelManager::HandleCloseChannel ( uint64_t nConnId, bool bWaitingLastWriteDataFinish )
+void QChannelManager::HandleCloseChannel(uint32_t nConnId, bool bWaitingLastWriteDataFinish)
 {
-	QChannel *pChn = FindChannel ( nConnId );
-	if ( !pChn )
-		return ;
-	pChn->HandleClose ( bWaitingLastWriteDataFinish );
-}
-
-void QChannelManager::OnConnClosed ( uint64_t nId , QChannel*pChn )
-{
-	assert ( nId == pChn->m_nConnId );
-	m_pChannelSink->OnClose ( nId, & pChn->m_info );
-	ChannelMapT::iterator ik = m_channelMap.find ( nId );
-	if ( ik != m_channelMap.end() )
-		m_channelMap.erase ( ik );
-	else
-		assert ( 0 );
-
-	// TODO 从map 中删除
-	assert ( m_nCountObj != 0 );
-	delete pChn;
-	--m_nCountObj;
+	QChannel* pChn = (QChannel*)nConnId;;
+	if (pChn)
+		pChn->HandleClose ( bWaitingLastWriteDataFinish );
 }
 
 bool QChannelManager::OnAccepted( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remteAddr , uint32_t nProtocolType, uint32_t nMaxMsgSize )
@@ -618,14 +591,14 @@ bool QChannelManager::OnAccepted( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKAD
 		closesocket(hSocket);
 		return false;
 	}
-
-	uint64_t nConnId = GetNextConnId();
-	QChannel *pChn = new QChannel ( this );
+	
+	auto pChn = std::make_shared<QChannel>(this);
+	channel_list_.emplace_back(pChn);
 	++m_nCountObj;
-	OnNewChannel (nConnId, pChn);
-	pChn->ResetChannel(hSocket, nConnId, localAddr, remteAddr, nProtocolType, nMaxMsgSize, false);
+	
+	pChn->ResetChannel(hSocket, (uint32_t)pChn.get(), localAddr, remteAddr, nProtocolType, nMaxMsgSize, false);
 
-	m_pChannelSink->OnAccepted ( nConnId , &pChn->m_info );
+	m_pChannelSink->OnAccepted ((uint32_t)pChn.get());
 	return true;
 }
 
@@ -640,7 +613,7 @@ void QChannelManager::InitMgr ( QEngIOCPEventQueueService *iocpService, IEngTcpS
 	m_pChannelService = iocpService;
 	m_pChannelSink = tcpSink;
 
-	srand (GetCurrentThreadId() * ( GetTickCount() % 1000 ) );
+	srand(GetCurrentThreadId() * (GetTickCount() % 1000));
 
 	check_timer_.userdata = this;
 	m_pChannelService->add_iocp_timer(&check_timer_, true, 1000, timer_callback);
@@ -652,13 +625,36 @@ void QChannelManager::timer_callback(IocpTimer* pTimer)
 	pChannel->HandleIdleCheck();
 }
 
+void QChannelManager::start_close_timer()
+{
+	close_timer_.userdata = this;
+	m_pChannelService->add_iocp_timer(&check_timer_, false, 0, close_callback);
+}
+void QChannelManager::close_callback(IocpTimer* pTimer)
+{
+	QChannelManager* pChannel = (QChannelManager*)pTimer->userdata;
+	pChannel->DealClosedChannel();
+}
+
+void QChannelManager::DealClosedChannel()
+{
+	for (auto ik = channel_list_.begin(); ik != channel_list_.end(); )
+	{
+		if ((*ik)->isClosed())
+		{
+			m_pChannelSink->OnClose((uint32_t)(*ik).get());
+			--m_nCountObj;
+			ik = channel_list_.erase(ik);
+		}
+		else
+			ik++;
+	}	
+}
+
 QChannelManager::~QChannelManager()
 {
-	CDataBuffer::TDataBlockPtrList::iterator il = m_oDBFreeList.begin();
-	for ( ; il != m_oDBFreeList.end(); ++il )
-	{
+	for (auto il = m_oDBFreeList.begin(); il != m_oDBFreeList.end(); ++il )
 		delete *il;
-	}
 	m_oDBFreeList.clear();
 }
 
@@ -667,76 +663,26 @@ void QChannelManager::HandleIdleCheck()
 	__time64_t tnow;
 	_time64 ( &tnow );
 
-	ChannelMapT mapClone =  m_channelMap;
-	ChannelMapT::iterator ik = mapClone.begin();
-	for ( ; ik != mapClone.end(); ++ik )
+	for (auto ik = channel_list_.begin(); ik != channel_list_.end(); ++ik )
 	{
-		QChannel *pChn = ik->second;
-		uint32_t tdiff = pChn->CalcIdelSeconds ( tnow );
-
-		/*
-		 *
-		 bug 可能
-		 在OnIdle->WriteData->OnIoError->
-		 然后就会删除ChannelMapT中的数据
-		 导致Map结构出错...
-		 改进:
-		 OnIOError 对于来自主动StartWrite 出错的情况进行特别处理
-		 或者先复制此map
-		 */
-		if ( !m_pChannelSink->OnIdle ( ik->first,  tdiff, &pChn->m_info ) )
-		{
-			PostCloseConnReq ( ik->first, false );
-		}
+		uint32_t tdiff = (*ik)->CalcIdelSeconds ( tnow );
+		if (!m_pChannelSink->OnIdle((uint32_t)(*ik).get(), tdiff))
+			PostCloseConnReq ((uint32_t)(*ik).get(), false );
 	}
 }
 
 void QChannelManager::HandleConnecttoOK ( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nProtocolType, uint32_t nMaxMsgSize , void *pAtt )
 {	
-	uint64_t nConnId = GetNextConnId();
-
-	QChannel *pChn = new QChannel ( this );
+	auto pChn = std::make_shared<QChannel>(this);
+	channel_list_.emplace_back(pChn);
 	++ m_nCountObj;
-	OnNewChannel ( nConnId, pChn );
-
-	pChn->ResetChannel ( hSocket, nConnId, localAddr, remoteAddr, nProtocolType, nMaxMsgSize , true );
-	m_pChannelSink->OnConnectToResult ( true, nConnId, pAtt, &pChn->m_info );
+	pChn->ResetChannel(hSocket, (uint32_t)pChn.get(), localAddr, remoteAddr, nProtocolType, nMaxMsgSize, true);
+	m_pChannelSink->OnConnect(true, (uint32_t)pChn.get(), pAtt);
 }
 
 void QChannelManager::HandleConnecttoFail ( void *pAtt )
 {
-	m_pChannelSink->OnConnectToResult ( false, 0, pAtt , 0 );
-}
-
-uint64_t QChannelManager::GetNextConnId()
-{
-	uint64_t nConnId = 0;
-	for ( ;; )
-	{
-		nConnId = ++m_nConnIdSeed;
-		if (m_nConnIdSeed >=0x7FFFFFFF)
-		{
-			// 为什么要这么做，就是将联接id 保持 [1,0x7FFFFFFF)之间,这么多的联接id(21亿)应当在相当长的时间内不会重复的
-			m_nConnIdSeed = 0;
-			continue;
-		}
-
-		if (0 == nConnId || ((uint64_t)-1 == nConnId))
-			continue;
-
-		if ( !FindChannel ( nConnId ) )
-			break;
-	}
-
-	return nConnId;
-}
-
-__time64_t QChannelManager::now()
-{
-	__time64_t t;
-	_time64 ( &t );
-
-	return t;
+	m_pChannelSink->OnConnect( false, 0, pAtt);
 }
 
 int QChannelManager::rand()
@@ -744,30 +690,14 @@ int QChannelManager::rand()
 	return rand();
 }
 
-bool QChannelManager::WriteData ( uint64_t nConnId, char *pData, uint32_t nBytes )
+bool QChannelManager::WriteData (uint32_t nConnId, char *pData, uint32_t nBytes )
 {
 	HandleWriteData ( nConnId, pData, nBytes );
 	return true;
 }
 
-QChannel* QChannelManager::FindChannel ( uint64_t nConnID )
-{
-	ChannelMapT::iterator it = m_channelMap.find ( nConnID );
-	if ( it == m_channelMap.end() )
-		return NULL;
-	QChannel *p = it->second;
-	assert ( p->m_nConnId == nConnID );
-	return p;
-}
-
-void QChannelManager::OnNewChannel ( uint64_t nConnId, QChannel *pChn )
-{
-	m_channelMap[nConnId] = pChn;
-}
-
 void QChannelManager::CloseChannel::HandleComplete ( ULONG_PTR , size_t )
 {
-	//
-	m_pMgr->HandleCloseChannel ( m_nConnId, m_bFlags );
+	m_pMgr->HandleCloseChannel (m_nConnId, m_bFlags);
 }
 

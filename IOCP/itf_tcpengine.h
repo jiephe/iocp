@@ -67,23 +67,21 @@ public:
 		PostWriteDataReq 是线程安全的
 		而WriteData 不一定是，因此WriteData 必须ChannaelManager 同一个线程,注意 Post
 	*/
-	virtual bool WriteData(uint64_t nConnId,char *pData,uint32_t nBytes)=0;
-	virtual bool PostWriteDataReq(uint64_t nConnId,char *pData,uint32_t nBytes)=0;
-	virtual bool IsValidConn(uint64_t nConnId)=0;
-	virtual void PostCloseConnReq(uint64_t nConnId,bool bWaitingLastWriteDataFinish)=0;
+	virtual bool WriteData(uint32_t nConnId,char *pData,uint32_t nBytes)=0;
+	virtual bool PostWriteDataReq(uint32_t nConnId,char *pData,uint32_t nBytes)=0;
+	virtual void PostCloseConnReq(uint32_t nConnId,bool bWaitingLastWriteDataFinish)=0;
 
-	virtual __time64_t now()=0;
 	virtual int  rand()=0;
 };
 
 struct ITcpEngine;
 struct IEngTcpSink
 {
-	virtual bool OnAccepted		( uint64_t nConnId,TChannelInfo *info) = 0;
-	virtual void OnClose			( uint64_t nConnId,TChannelInfo *info) = 0;
-	virtual void OnData			( uint64_t nConnId, char *pData, DWORD dwBytes ,TChannelInfo *info) = 0;
-	virtual bool OnIdle			( uint64_t nConnId, uint32_t nIdleMS,TChannelInfo*info ) = 0;
-	virtual void OnConnectToResult( bool isOK,uint64_t nConnId,void *pAttData,TChannelInfo*info)=0;
+	virtual bool OnAccepted		(uint32_t nConnId) = 0;
+	virtual void OnClose			(uint32_t nConnId) = 0;
+	virtual void OnData			(uint32_t nConnId, char *pData, DWORD dwByte) = 0;
+	virtual bool OnIdle			(uint32_t nConnId, uint32_t nIdleMS) = 0;
+	virtual void OnConnect(bool isOK, uint32_t nConnId,void *pAttData)=0;
 
 	virtual void OnPulse			( uint64_t  nMsPassedAfterStart ) = 0;
 };

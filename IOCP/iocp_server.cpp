@@ -44,29 +44,29 @@ void CIocpServer::stop()
 	iocp_engine_->DestoryEngine();
 }
 
-bool CIocpServer::OnAccepted(uint64_t nConnId, TChannelInfo *info)
+bool CIocpServer::OnAccepted(uint32_t nConnId)
 {
 	if (accept_cb_)
 		accept_cb_(this, nConnId);
 
 	return true;
 }
-void CIocpServer::OnClose(uint64_t nConnId, TChannelInfo *info)
+void CIocpServer::OnClose(uint32_t nConnId)
 {
 	int a = 1;
 }
-void CIocpServer::OnData(uint64_t nConnId, char *pData, DWORD dwBytes, TChannelInfo *info)
+void CIocpServer::OnData(uint32_t nConnId, char *pData, DWORD dwBytes)
 {
 	auto itor = map_read_cb_.find(nConnId);
 	if (itor != map_read_cb_.end())
 		(itor->second)(this, pData, dwBytes);
 }
-bool CIocpServer::OnIdle(uint64_t nConnId, uint32_t nIdleMS, TChannelInfo*info)
+bool CIocpServer::OnIdle(uint32_t nConnId, uint32_t nIdleMS)
 {
 	int a = 1;
 	return true;
 }
-void CIocpServer::OnConnectToResult(bool isOK, uint64_t nConnId, void *pAttData, TChannelInfo*info)
+void CIocpServer::OnConnect(bool isOK, uint32_t nConnId, void *pAttData)
 {
 	int a = 1;
 }

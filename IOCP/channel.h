@@ -3,28 +3,31 @@
 #include "service.h"
 #include "DataBuffer.h"
 #include "lock.h"
-#include <map>
+#include <list>
 
 class QChannel;
+
+typedef std::shared_ptr<QChannel>	QChannelPtr;
+
 class QChannelManager:public IEngChannelManager
 {
 	friend class QChannel;
-	typedef std::map<uint64_t , QChannel *> ChannelMapT;
-	std::map<uint64_t , QChannel *> m_channelMap;
-	IEngTcpSink *m_pChannelSink;
-	QEngIOCPEventQueueService * m_pChannelService;
-	CDataBuffer::TDataBlockPtrList m_oDBFreeList;
-	uint64_t m_nConnIdSeed;
-	int m_nCountObj;
-	IocpTimer check_timer_;
+	std::list<QChannelPtr>			channel_list_;
+	IEngTcpSink*					m_pChannelSink;
+	QEngIOCPEventQueueService*		m_pChannelService;
+	CDataBuffer::TDataBlockPtrList	m_oDBFreeList;
+	uint64_t						m_nConnIdSeed;
+	int32_t							m_nCountObj;
+	IocpTimer						check_timer_;
+	IocpTimer						close_timer_;
 
 public:
 	QEngIOCPEventQueueService* get_iocp_service() {return m_pChannelService; }
 
 	static void timer_callback(IocpTimer* pTimer);
-
-private:
-	void OnNewChannel(uint64_t nConnId, QChannel *pChn);
+	
+	void start_close_timer();
+	static void close_callback(IocpTimer* pTimer);
 
 public:
 	void InitMgr ( QEngIOCPEventQueueService *iocpService, IEngTcpSink *tcpSink );
@@ -45,25 +48,21 @@ public:
 	void HandleConnecttoFail(void *pAtt);
 
 public:
-	void OnConnClosed ( uint64_t nId, QChannel *pChn );
+	void DealClosedChannel();
 	bool OnAccepted ( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remteAddr, uint32_t nProtocolType, uint32_t nMaxMsgSize );
 
 protected:
-	void HandleWriteData ( uint64_t nConnId, char *pData, uint32_t nBytes );
-	void HandleCloseChannel ( uint64_t nConnId, bool bWaitingLastWriteDataFinish );
+	void HandleWriteData (uint32_t nConnId, char *pData, uint32_t nBytes );
+	void HandleCloseChannel (uint32_t nConnId, bool bWaitingLastWriteDataFinish );
 
 public:
-	virtual bool WriteData(uint64_t nConnId,char *pData,uint32_t nBytes);
-	virtual bool PostWriteDataReq ( uint64_t nConnId, char *pData, uint32_t nBytes );
-	virtual bool IsValidConn ( uint64_t nConnId );
-	virtual void PostCloseConnReq ( uint64_t nConnId, bool bWaitingLastWriteDataFinish );
+	virtual bool WriteData(uint32_t nConnId,char *pData,uint32_t nBytes);
+	virtual bool PostWriteDataReq (uint32_t nConnId, char *pData, uint32_t nBytes );
+	virtual void PostCloseConnReq (uint32_t nConnId, bool bWaitingLastWriteDataFinish );
 
-	virtual __time64_t now();
 	virtual int  rand();
 
 private:
-	uint64_t GetNextConnId();
-	QChannel*FindChannel ( uint64_t nConnID );
 
 #pragma region IdleCheck
 	class IdleCheck: public IEngEventHandler
@@ -91,7 +90,7 @@ private:
 		{
 			delete this;
 		};
-		uint64_t m_nConnId;
+		uint32_t m_nConnId;
 		bool m_bFlags;
 	};
 	typedef TOverlappedWrapper<CloseChannel> CloseChannelOverLapped;
@@ -109,9 +108,9 @@ private:
 	private:
 		char *m_pBuffer;
 		size_t m_nBuffLen;
-		uint64_t m_nConnId;
+		uint32_t m_nConnId;
 	public:
-		bool AppendBuffer ( uint64_t nConnId, char *pData, uint32_t nBytes );
+		bool AppendBuffer ( uint32_t nConnId, char *pData, uint32_t nBytes );
 		AppendSend();
 		~AppendSend();
 	};
@@ -176,7 +175,7 @@ public:
 	// bWaitingLastWriteDataSuccess 是否等待最后一个writedata所发送的数据完成。
 	void HandleClose ( bool bWaitingLastWriteDataSuccess ) ;
 	void HandleWriteData ( char *pData, uint32_t nBytes );
-	void ResetChannel ( SOCKET hSocket,uint64_t nConnId, SOCKADDR_IN *local, SOCKADDR_IN *remote, uint32_t nProtocolType, uint32_t nMaxMsgSize,bool isClient );
+	void ResetChannel ( SOCKET hSocket,uint32_t nConnId, SOCKADDR_IN *local, SOCKADDR_IN *remote, uint32_t nProtocolType, uint32_t nMaxMsgSize,bool isClient );
 	uint32_t CalcIdelSeconds(__time64_t tnow );
 
 private:
@@ -192,11 +191,15 @@ private:
 
 	void dumpChannel(std::string &s);
 
+	bool isClosed() {
+		return m_isCloseHasNotified;
+	}
+
 private:
 	TChannelInfo m_info;
 
 	// 联接id
-	uint64_t m_nConnId;
+	uint32_t m_nConnId;
 	//
 
 	/// 状态：读

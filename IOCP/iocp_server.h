@@ -5,7 +5,7 @@
 
 class CIocpServer;
 
-using accept_cb = std::function<void(CIocpServer*, uint64_t)>;
+using accept_cb = std::function<void(CIocpServer*, uint32_t)>;
 using read_cb = std::function<void(CIocpServer*, char* data, int32_t size)>;
 
 class CIocpServer : public IEngTcpSink
@@ -15,11 +15,12 @@ public:
 	static CIocpServer* iocp_server_;
 
 public:
-	virtual bool OnAccepted(uint64_t nConnId, TChannelInfo *info);
-	virtual void OnClose(uint64_t nConnId, TChannelInfo *info);
-	virtual void OnData(uint64_t nConnId, char *pData, DWORD dwBytes, TChannelInfo *info);
-	virtual bool OnIdle(uint64_t nConnId, uint32_t nIdleMS, TChannelInfo*info);
-	virtual void OnConnectToResult(bool isOK, uint64_t nConnId, void *pAttData, TChannelInfo*info);
+	virtual bool OnAccepted(uint32_t nConnId);
+	virtual void OnClose(uint32_t nConnId);
+	virtual void OnData(uint32_t nConnId, char *pData, DWORD dwBytes);
+	virtual bool OnIdle(uint32_t nConnId, uint32_t nIdleMS);
+
+	virtual void OnConnect(bool isOK, uint32_t nConnId, void *pAttData);
 
 	virtual void OnPulse(uint64_t  nMsPassedAfterStart);
 
