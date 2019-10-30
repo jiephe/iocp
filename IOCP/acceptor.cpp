@@ -11,14 +11,6 @@ bool QAcceptor::StartAcceptor ( QChannelManager*pMgr, uint16_t nPort, const char
 	m_nMaxMsgSize		= nMaxMsgSize;
 	m_nProtocolType	= nProtocolType;
 
-#if 0
-	m_pAcceptEventQueueService = new QEngIOCPEventQueueService();
-	if (!m_pAcceptEventQueueService->BeginService ())
-		return false;
-#endif
-
-	m_pAcceptEventQueueService = pMgr->get_iocp_service();
-
 	m_hListenSocket = WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
 	if ( INVALID_SOCKET == m_hListenSocket ) return false;
 
@@ -57,7 +49,7 @@ bool QAcceptor::StartAcceptor ( QChannelManager*pMgr, uint16_t nPort, const char
 		return false;
 	}
 
-	if ( !m_pAcceptEventQueueService->BindHandleToIocp ( ( HANDLE ) m_hListenSocket ) )
+	if ( !pMgr->get_iocp_service()->BindHandleToIocp ( ( HANDLE ) m_hListenSocket ) )
 	{
 		closesocket ( m_hListenSocket );
 		return false;
@@ -134,18 +126,15 @@ void QAcceptor::OnAccpetFinish ( AcceptHandler*pHandler )
 		&remoteLen
 	);
 
-	m_pMgr->PostAccepted ( pHandler->m_hSocket, local, remote, m_nProtocolType, m_nMaxMsgSize );
+	m_pMgr->OnAccepted( pHandler->m_hSocket, local, remote, m_nProtocolType, m_nMaxMsgSize );
 }
 
 QAcceptor::QAcceptor()
 {
-	m_pAcceptEventQueueService = NULL;
 }
 
 void QAcceptor::DestroyAcceptor()
 {
-	if (m_pAcceptEventQueueService)
-		m_pAcceptEventQueueService->DestroyService();
 	closesocket ( m_hListenSocket );
 }
 

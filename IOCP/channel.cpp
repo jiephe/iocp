@@ -609,42 +609,24 @@ void QChannelManager::OnConnClosed ( uint64_t nId , QChannel*pChn )
 	assert ( m_nCountObj != 0 );
 	delete pChn;
 	--m_nCountObj;
-	printf ( "-" );
 }
 
-bool QChannelManager::HandleAccepted ( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remteAddr , uint32_t nProtocolType, uint32_t nMaxMsgSize )
+bool QChannelManager::OnAccepted( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remteAddr , uint32_t nProtocolType, uint32_t nMaxMsgSize )
 {
-	if ( !m_pChannelService->BindHandleToIocp ( ( HANDLE ) hSocket ) )
+	if (!m_pChannelService->BindHandleToIocp((HANDLE)hSocket))
 	{
-		closesocket ( hSocket );
+		closesocket(hSocket);
 		return false;
 	}
 
 	uint64_t nConnId = GetNextConnId();
 	QChannel *pChn = new QChannel ( this );
 	++m_nCountObj;
-	assert ( pChn );
-	OnNewChannel ( nConnId, pChn );
-	pChn->ResetChannel ( hSocket, nConnId, localAddr, remteAddr, nProtocolType, nMaxMsgSize, false );
+	OnNewChannel (nConnId, pChn);
+	pChn->ResetChannel(hSocket, nConnId, localAddr, remteAddr, nProtocolType, nMaxMsgSize, false);
 
 	m_pChannelSink->OnAccepted ( nConnId , &pChn->m_info );
-	printf ( "+" );
-
 	return true;
-}
-
-void QChannelManager::PostAccepted ( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nProtocolType, uint32_t nMaxMsgSize )
-{
-	AcceptOverLapped *p = new AcceptOverLapped();
-	assert ( p );
-	p->m_pMgr = this;
-	p->m_nProtocolType = nProtocolType;
-	p->m_nMaxMsgSize = nMaxMsgSize;
-	p->m_hSocket = hSocket;
-	memcpy ( &p->m_localAddress, localAddr, sizeof ( SOCKADDR_IN ) );
-	memcpy ( &p->m_remoteAddress, remoteAddr, sizeof ( SOCKADDR_IN ) );
-
-	m_pChannelService->PostRequest ( 0, p, &p->m_overlap );
 }
 
 QChannelManager::QChannelManager()
@@ -658,8 +640,7 @@ void QChannelManager::InitMgr ( QEngIOCPEventQueueService *iocpService, IEngTcpS
 	m_pChannelService = iocpService;
 	m_pChannelSink = tcpSink;
 
-	m_dwThreadId = GetCurrentThreadId();
-	srand ( m_dwThreadId* ( GetTickCount() % 1000 ) );
+	srand (GetCurrentThreadId() * ( GetTickCount() % 1000 ) );
 
 	check_timer_.userdata = this;
 	m_pChannelService->add_iocp_timer(&check_timer_, true, 1000, timer_callback);
@@ -716,11 +697,7 @@ void QChannelManager::HandleConnecttoOK ( SOCKET hSocket, SOCKADDR_IN *localAddr
 
 	QChannel *pChn = new QChannel ( this );
 	++ m_nCountObj;
-	//m_channelMap[nConnId] = pChn;
 	OnNewChannel ( nConnId, pChn );
-	//assert ( m_channelMap[nConnId] == pChn );
-
-	printf("\nWDTEST connect ok socket: %d\n", hSocket);
 
 	pChn->ResetChannel ( hSocket, nConnId, localAddr, remoteAddr, nProtocolType, nMaxMsgSize , true );
 	m_pChannelSink->OnConnectToResult ( true, nConnId, pAtt, &pChn->m_info );
@@ -745,9 +722,7 @@ uint64_t QChannelManager::GetNextConnId()
 		}
 
 		if (0 == nConnId || ((uint64_t)-1 == nConnId))
-		{
 			continue;
-		}
 
 		if ( !FindChannel ( nConnId ) )
 			break;
@@ -771,10 +746,6 @@ int QChannelManager::rand()
 
 bool QChannelManager::WriteData ( uint64_t nConnId, char *pData, uint32_t nBytes )
 {
-	/*
-	DWORD dwThreadId = GetCurrentThreadId();
-	assert ( dwThreadId == m_dwThreadId );
-	*/
 	HandleWriteData ( nConnId, pData, nBytes );
 	return true;
 }
@@ -800,14 +771,3 @@ void QChannelManager::CloseChannel::HandleComplete ( ULONG_PTR , size_t )
 	m_pMgr->HandleCloseChannel ( m_nConnId, m_bFlags );
 }
 
-void QChannelManager::AcceptedHandler::HandleComplete ( ULONG_PTR , size_t  )
-{
-	m_pMgr->HandleAccepted (
-		m_hSocket, &m_localAddress, &m_remoteAddress, m_nProtocolType, m_nMaxMsgSize );
-}
-
-void QChannelManager::AcceptedHandler::HandleError ( ULONG_PTR , size_t  )
-{
-	closesocket ( m_hSocket );
-	printf ( "$" );
-}

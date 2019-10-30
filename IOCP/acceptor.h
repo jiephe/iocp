@@ -47,6 +47,5 @@ private:
 	uint32_t m_nProtocolType;
 	uint32_t m_nMaxMsgSize;
 	std::map<AcceptHandler*,AcceptHandlerOverLapped*> m_needDelete;
-	QEngIOCPEventQueueService *m_pAcceptEventQueueService;
 	QChannelManager * m_pMgr;
 };

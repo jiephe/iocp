@@ -13,7 +13,6 @@ class QChannelManager:public IEngChannelManager
 	std::map<uint64_t , QChannel *> m_channelMap;
 	IEngTcpSink *m_pChannelSink;
 	QEngIOCPEventQueueService * m_pChannelService;
-	DWORD m_dwThreadId;
 	CDataBuffer::TDataBlockPtrList m_oDBFreeList;
 	uint64_t m_nConnIdSeed;
 	int m_nCountObj;
@@ -42,15 +41,14 @@ public:
 
 public:
 	void HandleIdleCheck();
-	void PostAccepted ( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nProtocolType, uint32_t nMaxMsgSize );
 	void HandleConnecttoOK( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nProtocolType, uint32_t nMaxMsgSize ,void *pAtt);
 	void HandleConnecttoFail(void *pAtt);
 
 public:
 	void OnConnClosed ( uint64_t nId, QChannel *pChn );
+	bool OnAccepted ( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remteAddr, uint32_t nProtocolType, uint32_t nMaxMsgSize );
 
 protected:
-	bool HandleAccepted ( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remteAddr, uint32_t nProtocolType, uint32_t nMaxMsgSize );
 	void HandleWriteData ( uint64_t nConnId, char *pData, uint32_t nBytes );
 	void HandleCloseChannel ( uint64_t nConnId, bool bWaitingLastWriteDataFinish );
 
@@ -81,27 +79,6 @@ private:
 	virtual void Destroy(){delete this;}
 	};
 #pragma endregion IdleCheck
-
-#pragma region Accpted
-	class AcceptedHandler: public IIOCPHandler
-	{
-	public:
-		SOCKADDR_IN m_localAddress;
-		SOCKADDR_IN	m_remoteAddress;
-		SOCKET m_hSocket;
-		uint32_t m_nProtocolType;
-		uint32_t m_nMaxMsgSize;
-		QChannelManager *m_pMgr;
-	public:
-		virtual void HandleComplete ( ULONG_PTR pKey, size_t nIOBytes );
-		virtual void HandleError ( ULONG_PTR pKey, size_t nIOBytes );
-		virtual void Destroy()
-		{
-			delete this;
-		}
-	};
-	typedef TOverlappedWrapper<AcceptedHandler> AcceptOverLapped;
-#pragma endregion Accpted
 
 #pragma region CloseChannel
 	class CloseChannel: public IIOCPHandler

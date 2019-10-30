@@ -147,6 +147,7 @@
     <ClCompile Include="channel.cpp" />
     <ClCompile Include="DataBuffer.cpp" />
     <ClCompile Include="eng.cpp" />
+    <ClCompile Include="iocp_server.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="service.cpp" />
   </ItemGroup>
@@ -156,6 +157,7 @@
     <ClInclude Include="channel.h" />
     <ClInclude Include="DataBuffer.h" />
     <ClInclude Include="eng.h" />
+    <ClInclude Include="iocp_server.h" />
     <ClInclude Include="itf_tcpengine.h" />
     <ClInclude Include="limit_define.h" />
     <ClInclude Include="lock.h" />

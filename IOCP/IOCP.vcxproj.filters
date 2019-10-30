@@ -36,6 +36,9 @@
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="iocp_server.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="acceptor.h">
@@ -66,6 +69,9 @@
       <Filter>源文件</Filter>
     </ClInclude>
     <ClInclude Include="service.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="iocp_server.h">
       <Filter>源文件</Filter>
     </ClInclude>
   </ItemGroup>
