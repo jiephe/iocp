@@ -1,7 +1,7 @@
 #pragma once
+
 #include "itf_tcpengine.h"
 #include "overlapped.h"
-#include <memory>
 #include <vector>
 #include <thread>
 #include <map>
@@ -43,6 +43,8 @@ private:
 	std::map<uint64_t, IocpTimerDataPtr>	timer_list_;
 	double									hrtime_interval_;
 };
+
+using IocpServicePtr = std::shared_ptr<QEngIOCPEventQueueService>;
 
 
 

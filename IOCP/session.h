@@ -1,3 +1,5 @@
+#pragma once
+
 #include "itf_tcpengine.h"
 #include "overlapped.h"
 #include "service.h"
@@ -6,19 +8,21 @@
 class QSession;
 using QSessionPtr = std::shared_ptr<QSession>;
 
-class QSessionManager: public IEngSessionManager
+class QSessionManager;
+using QSessionMgrPtr = std::shared_ptr<QSessionManager>;
+
+class QSessionManager: public IEngSessionManager, public std::enable_shared_from_this<QSessionManager>
 {
 	std::map<uint32_t, QSessionPtr>						session_list_;
 	TcpSinkPtr											tcp_sink_;
-	std::shared_ptr<QEngIOCPEventQueueService>			iocp_service_;
+	IocpServicePtr										iocp_service_;
 
 public:
-	std::shared_ptr<QEngIOCPEventQueueService> get_iocp_service() {return iocp_service_; }
-
+	IocpServicePtr get_iocp_service() {return iocp_service_; }
 	TcpSinkPtr	get_tcp_sink() { return tcp_sink_; }
 
 public:
-	QSessionManager(std::shared_ptr<QEngIOCPEventQueueService> iocpService, TcpSinkPtr tcpSink);
+	QSessionManager(IocpServicePtr iocpService, TcpSinkPtr tcpSink);
 	virtual ~QSessionManager();
 
 public:
@@ -44,7 +48,7 @@ private:
 		virtual void HandleComplete(ULONG_PTR pKey, size_t);
 		virtual void HandleError(ULONG_PTR, size_t) {}
 		virtual void Destroy() {delete this;}
-		QSessionManager*	m_pMgr;
+		QSessionMgrPtr		m_pMgr;
 		uint32_t			m_nSessionId;
 	};
 	typedef TOverlappedWrapper<CloseSession> CloseSessionOverLapped;
@@ -58,11 +62,11 @@ private:
 		virtual void HandleComplete ( ULONG_PTR pKey, size_t nIOBytes );
 		virtual void HandleError ( ULONG_PTR pKey, size_t nIOBytes );
 		virtual void Destroy();
-		QSessionManager *m_pMgr;
+		QSessionMgrPtr m_pMgr;
 	private:
-		char *m_pBuffer;
-		size_t m_nBuffLen;
-		uint32_t m_nSessionId;
+		char*		m_pBuffer;
+		size_t		m_nBuffLen;
+		uint32_t	m_nSessionId;
 	public:
 		bool AppendBuffer ( uint32_t session_id, char *pData, uint32_t nBytes );
 		AppendSend();
@@ -74,7 +78,7 @@ private:
 	friend class AppendSend;
 };
 
-class QSession
+class QSession : public std::enable_shared_from_this<QSession>
 {
 #pragma region SendHandler
 	class SendHandler: public IIOCPHandler
@@ -88,7 +92,7 @@ class QSession
 	public:
 		std::string			send_data;
 		WSABUF				m_sendBuff;
-		QSession*			m_pSession;
+		QSessionPtr			m_pSession;
 		bool				m_can_delete;
 	};
 	typedef TOverlappedWrapper<SendHandler> SendHandlerOverLapped;
@@ -105,13 +109,13 @@ class QSession
 		DWORD		m_uRecvFlags;
 		DWORD		m_dwRecvBytes;
 		WSABUF		m_recvBuff;
-		QSession*	m_pSession;
+		QSessionPtr	m_pSession;
 	};
 	typedef TOverlappedWrapper<RecvHandler> RecvHandlerOverLapped;
 #pragma endregion RecvHandler
 
 public:
-	QSession(QSessionManager *pMgr, SOCKET s, uint32_t nMaxMsgSize);
+	QSession(QSessionMgrPtr ptr, SOCKET s, uint32_t nMaxMsgSize);
 	~QSession();
 
 public:
@@ -140,7 +144,7 @@ private:
 
 	DWORD					m_nMaxMsgSize;
 
-	QSessionManager*		m_pMgr;
+	QSessionMgrPtr			m_pMgr;
 
 	std::vector<char>		recv_buffer_;
 };

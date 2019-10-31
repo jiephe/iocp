@@ -59,12 +59,12 @@ void QSessionManager::PostCloseSessionReq(uint32_t session_id)
 		itor->second->set_b_closing(true);
 		CloseSessionOverLapped* p = new CloseSessionOverLapped();
 		p->m_nSessionId = session_id;
-		p->m_pMgr = this;
+		p->m_pMgr = shared_from_this();
 		get_iocp_service()->PostRequest(0, (void*)session_id, &p->m_overlap);
 	}
 }
 
-QSession::QSession(QSessionManager *pMgr, SOCKET s, uint32_t nMaxMsgSize)
+QSession::QSession(QSessionMgrPtr pMgr, SOCKET s, uint32_t nMaxMsgSize)
 	:m_pMgr(pMgr), m_hSocket(s), m_nMaxMsgSize(nMaxMsgSize), b_closing_(false)
 {
 	session_id_ = (uint32_t)this;
@@ -119,7 +119,7 @@ bool QSession::StartWrite(char* data, uint32_t size)
 		return false;
 
 	SendHandlerOverLapped *p = new SendHandlerOverLapped();
-	p->m_pSession = this;
+	p->m_pSession = shared_from_this();
 	
 	p->send_data.append(data, size);
 	p->m_sendBuff.buf = (char*)p->send_data.c_str();
@@ -146,12 +146,12 @@ void QSession::HandleRead()
 bool QSession::StartRead()
 {
 	RecvHandlerOverLapped *p = new RecvHandlerOverLapped();
-	p->m_pSession = this;
+	p->m_pSession = shared_from_this();
 	p->m_uRecvFlags = 0;
 	p->m_dwRecvBytes = 0;
 	p->m_recvBuff.buf = &recv_buffer_[0];
 	p->m_recvBuff.len = 65536;
-	//p->m_recvBuff.len = 20;
+
 	//每次GetQueuedCompletionStatus 时nIOBytes 至多是p->m_recvBuff.len
 	UINT uRet = WSARecv ( m_hSocket, &p->m_recvBuff, 1, &p->m_dwRecvBytes, &p->m_uRecvFlags, &p->m_overlap, NULL);
 	if ( uRet == SOCKET_ERROR )
@@ -244,7 +244,7 @@ void QSession::RecvHandler::Destroy()
 bool QSessionManager::PostWriteDataReq(uint32_t session_id, char* data, uint32_t size)
 {
 	AppendSendOverLapped* p = new AppendSendOverLapped();
-	p->m_pMgr = this;
+	p->m_pMgr = shared_from_this();
 	p->AppendBuffer (session_id, data, size);
 	if (!get_iocp_service()->PostRequest (size, (void*)session_id, &p->m_overlap))
 	{
@@ -270,7 +270,7 @@ bool QSessionManager::OnAccepted( SOCKET hSocket, uint32_t nMaxMsgSize )
 		return false;
 	}
 	
-	auto session = std::make_shared<QSession>(this, hSocket, nMaxMsgSize);
+	auto session = std::make_shared<QSession>(shared_from_this(), hSocket, nMaxMsgSize);
 	session_list_[session->get_session_id()] = session;
 	
 	session->HandleRead();
@@ -280,7 +280,7 @@ bool QSessionManager::OnAccepted( SOCKET hSocket, uint32_t nMaxMsgSize )
 	return true;
 }
 
-QSessionManager::QSessionManager(std::shared_ptr<QEngIOCPEventQueueService> iocpService, TcpSinkPtr tcpSink)
+QSessionManager::QSessionManager(IocpServicePtr iocpService, TcpSinkPtr tcpSink)
 	:iocp_service_(iocpService), tcp_sink_(tcpSink)
 {
 }
@@ -291,7 +291,7 @@ QSessionManager::~QSessionManager()
 
 void QSessionManager::HandleConnecttoOK (SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nMaxMsgSize , void *pAtt )
 {	
-	auto session = std::make_shared<QSession>(this, hSocket, nMaxMsgSize);
+	auto session = std::make_shared<QSession>(shared_from_this(), hSocket, nMaxMsgSize);
 	session_list_[session->get_session_id()] = session;
 	session->HandleRead();
 	get_tcp_sink()->OnConnect(true, session->get_session_id(), pAtt);

@@ -1,4 +1,5 @@
 #pragma once
+
 #include "itf_tcpengine.h"
 #include "acceptor.h"
 #include "service.h"
@@ -12,9 +13,9 @@ class QEngine : public ITcpEngine
 {
 	bool											m_hasListen;
 	TcpSinkPtr										tcp_sink_;
-	std::shared_ptr<QAcceptor>						acceptor_;
-	std::shared_ptr<QEngIOCPEventQueueService>		iocp_service_;
-	std::shared_ptr<QSessionManager>				session_manager_;
+	QAcceptorPtr									acceptor_;
+	IocpServicePtr									iocp_service_;
+	QSessionMgrPtr									session_manager_;
 
 	uint32_t						m_nListenMaxMsgSize;
 	uint16_t						m_nListenPort;
@@ -52,7 +53,7 @@ private:
 
 		SOCKET m_hSocket;
 		uint32_t m_nMaxMsgSize;
-		std::shared_ptr<QSessionManager> session_mgr_;
+		QSessionMgrPtr session_mgr_;
 
 		virtual void HandleComplete(ULONG_PTR pKey,size_t nIOBytes);
 		virtual void HandleError(ULONG_PTR pKey,size_t nIOBytes);

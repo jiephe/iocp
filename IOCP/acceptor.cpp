@@ -1,14 +1,13 @@
 #include "acceptor.h"
 #include "address.h"
 #include "session.h"
-#include "limit_define.h"
 
 #pragma comment(lib, "WS2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
 
-bool QAcceptor::start (std::shared_ptr<QSessionManager> ptr, uint16_t nPort, const char * szIP, uint32_t nMaxMsgSize )
+bool QAcceptor::start (QSessionMgrPtr ptr, uint16_t nPort, const char * szIP, uint32_t nMaxMsgSize)
 {
-	m_pMgr	= ptr;
+	session_mgr_ = ptr;
 	m_nMaxMsgSize = nMaxMsgSize;
 
 	m_hListenSocket = WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
@@ -32,7 +31,7 @@ bool QAcceptor::start (std::shared_ptr<QSessionManager> ptr, uint16_t nPort, con
 		return false;
 	}
 
-	if ( !m_pMgr->get_iocp_service()->BindHandleToIocp ( ( HANDLE ) m_hListenSocket ) )
+	if ( !session_mgr_->get_iocp_service()->BindHandleToIocp ( ( HANDLE ) m_hListenSocket ) )
 	{
 		closesocket ( m_hListenSocket );
 		return false;
@@ -98,7 +97,7 @@ bool QAcceptor::AddOneAcceptEx()
 		delete p;
 		return false;
 	}
-	p->m_acceptor = this;
+	p->acceptor = shared_from_this();
 
 	if (!AcceptEx (m_hListenSocket,
 					p->m_hSocket,
@@ -134,7 +133,7 @@ bool QAcceptor::AddOneAcceptExtension()
 		delete p;
 		return false;
 	}
-	p->m_acceptor = this;
+	p->acceptor = shared_from_this();
 
 	int nRet = fnAcceptEx_(m_hListenSocket, 
 						p->m_hSocket,
@@ -187,7 +186,7 @@ void QAcceptor::OnAccpetFinish(AcceptHandler* pHandler)
 	}
 #endif
 
-	m_pMgr->OnAccepted(pHandler->m_hSocket, m_nMaxMsgSize);
+	session_mgr_->OnAccepted(pHandler->m_hSocket, m_nMaxMsgSize);
 }
 
 QAcceptor::QAcceptor()
@@ -220,18 +219,18 @@ void QAcceptor::RemoveFromMap ( AcceptHandler*p )
 
 void QAcceptor::AcceptHandler::HandleComplete ( ULONG_PTR , size_t  )
 {
-	m_acceptor->RemoveFromMap ( this );
-	m_acceptor->AddOneAccept();
-	m_acceptor->OnAccpetFinish ( this );
+	acceptor->RemoveFromMap ( this );
+	acceptor->AddOneAccept();
+	acceptor->OnAccpetFinish ( this );
 }
 
 void QAcceptor:: AcceptHandler::HandleError ( ULONG_PTR , size_t  )
 {
-	m_acceptor->RemoveFromMap ( this );
+	acceptor->RemoveFromMap ( this );
 
 	closesocket ( m_hSocket );
 	m_hSocket = INVALID_SOCKET;
-	m_acceptor->AddOneAccept();
+	acceptor->AddOneAccept();
 }
 
 void QAcceptor::AcceptHandler::Destroy()
