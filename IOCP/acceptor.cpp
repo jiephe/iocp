@@ -90,13 +90,10 @@ void QAcceptor::AddOneAccept()
 bool QAcceptor::AddOneAcceptEx()
 {
 	DWORD dwRecvNumBytes = 0;
-	AcceptHandlerOverLapped *p = new AcceptHandlerOverLapped;
+	auto p = std::make_shared<AcceptHandlerOverLapped>();
 	p->m_hSocket = WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
 	if ( INVALID_SOCKET == p->m_hSocket )
-	{
-		delete p;
 		return false;
-	}
 	p->acceptor = shared_from_this();
 
 	if (!AcceptEx (m_hListenSocket,
@@ -113,12 +110,11 @@ bool QAcceptor::AddOneAcceptEx()
 		{
 			printf("failed to call AcceptEx: %d\n", WSAGetLastError());
 			closesocket(p->m_hSocket);
-			delete p;
 			return false;
 		}
 	}
 
-	m_needDelete[p] = p;
+	accept_concurrent_[p] = p;
 	return true;
 }
 
@@ -126,14 +122,13 @@ bool QAcceptor::AddOneAcceptExtension()
 {
 	DWORD dwRecvNumBytes = 0;
 
-	AcceptHandlerOverLapped *p = new AcceptHandlerOverLapped;
+	auto p = std::make_shared<AcceptHandlerOverLapped>();
 	p->m_hSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (INVALID_SOCKET == p->m_hSocket)
-	{
-		delete p;
 		return false;
-	}
 	p->acceptor = shared_from_this();
+
+	int use = p.use_count();
 
 	int nRet = fnAcceptEx_(m_hListenSocket, 
 						p->m_hSocket,
@@ -148,15 +143,17 @@ bool QAcceptor::AddOneAcceptExtension()
 	{
 		printf("failed to call fnAcceptEx_: %d\n", WSAGetLastError());
 		closesocket(p->m_hSocket);
-		delete p;
 		return false;
 	}
 
-	m_needDelete[p] = p;
+	accept_concurrent_[p] = p;
+
+	use = p.use_count();
+
 	return true;
 }
 
-void QAcceptor::OnAccpetFinish(AcceptHandler* pHandler)
+void QAcceptor::OnAccpetFinish(AcceptHandlerPtr ptr)
 {
 #ifndef USE_ACCEPT_EXTENTION
 	SOCKADDR_IN* remote = NULL;
@@ -165,7 +162,7 @@ void QAcceptor::OnAccpetFinish(AcceptHandler* pHandler)
 	int remoteLen	= sizeof ( SOCKADDR_IN );
 	int localLen	= sizeof ( SOCKADDR_IN );
 
-	GetAcceptExSockaddrs (pHandler->m_buffer,
+	GetAcceptExSockaddrs (ptr->m_buffer,
 						0,
 						sizeof(SOCKADDR_IN) + 16,
 						sizeof(SOCKADDR_IN) + 16,
@@ -174,7 +171,7 @@ void QAcceptor::OnAccpetFinish(AcceptHandler* pHandler)
 						(LPSOCKADDR*)&remote,
 						&remoteLen);
 #else
-	int nRet = setsockopt(pHandler->m_hSocket,
+	int nRet = setsockopt(ptr->m_hSocket,
 							SOL_SOCKET,
 							SO_UPDATE_ACCEPT_CONTEXT,
 							(char *)&m_hListenSocket,
@@ -186,54 +183,40 @@ void QAcceptor::OnAccpetFinish(AcceptHandler* pHandler)
 	}
 #endif
 
-	session_mgr_->OnAccepted(pHandler->m_hSocket, m_nMaxMsgSize);
+	session_mgr_->OnAccepted(ptr->m_hSocket, m_nMaxMsgSize);
 }
 
 QAcceptor::QAcceptor()
-{
-}
+{}
+
+QAcceptor::~QAcceptor()
+{}
 
 void QAcceptor::stop()
 {
-	closesocket ( m_hListenSocket );
+	accept_concurrent_.clear();
+	closesocket(m_hListenSocket);
 }
 
-QAcceptor::~QAcceptor()
+void QAcceptor::remove_accepted_one(AcceptHandlerPtr ptr)
 {
-	auto ik = m_needDelete.begin();
-	for ( ; ik != m_needDelete.end(); ++ik )
-	{
-		AcceptHandler *p = ik->first;
-		if ( INVALID_SOCKET != p->m_hSocket )
-			closesocket ( p->m_hSocket );
-		ik->second->Destroy();
-	}
-}
-
-void QAcceptor::RemoveFromMap ( AcceptHandler*p )
-{
-	auto ik = m_needDelete.find ( p );
-	if ( ik != m_needDelete.end() )
-		m_needDelete.erase ( ik );
+	auto itor = accept_concurrent_.find(ptr);
+	if (itor != accept_concurrent_.end())
+		accept_concurrent_.erase(itor);
 }
 
 void QAcceptor::AcceptHandler::HandleComplete ( ULONG_PTR , size_t  )
 {
-	acceptor->RemoveFromMap ( this );
 	acceptor->AddOneAccept();
-	acceptor->OnAccpetFinish ( this );
+	acceptor->OnAccpetFinish (shared_from_this());
 }
 
 void QAcceptor:: AcceptHandler::HandleError ( ULONG_PTR , size_t  )
 {
-	acceptor->RemoveFromMap ( this );
-
-	closesocket ( m_hSocket );
-	m_hSocket = INVALID_SOCKET;
 	acceptor->AddOneAccept();
 }
 
 void QAcceptor::AcceptHandler::Destroy()
 {
-	delete this;
+	acceptor->remove_accepted_one(shared_from_this());
 }
