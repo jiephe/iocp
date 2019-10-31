@@ -17,31 +17,9 @@ typedef std::shared_ptr<IocpTimerData>	IocpTimerDataPtr;
 
 class QEngIOCPEventQueueService: public IEngIOCPService
 {
-	struct UserEventHandler:public IIOCPHandler
-	{
-		IEngEventHandler *m_pUserHandler;
-		virtual void HandleComplete(ULONG_PTR ,size_t )
-		{
-			m_pUserHandler->Fire();
-		}
-
-		virtual void HandleError(ULONG_PTR ,size_t )
-		{
-			m_pUserHandler->HandleError();
-		}
-
-		virtual void Destroy()
-		{
-			m_pUserHandler->Destroy();
-			delete this;
-		}
-	};
-
 public:
-	virtual bool BeginService() ;
-	virtual void DestroyService();
-
-	virtual bool PostUserEvent(IEngEventHandler*pEvtHandler);
+	virtual bool start() ;
+	virtual void stop();
 
 	virtual void add_iocp_timer(IocpTimer* pTimer, bool bRepeat, uint32_t uMS, timer_cb cb);
 	virtual void kill_iocp_timer(IocpTimer* hHandle);
@@ -56,7 +34,7 @@ public:
 	void update_loop_timer(double scale);
 public:
 	bool BindHandleToIocp(HANDLE hHandle);
-	bool PostRequest(DWORD nWantIOBytes,void * pKey,LPOVERLAPPED ol);
+	BOOL PostRequest(DWORD nWantIOBytes,void * pKey,LPOVERLAPPED ol);
 
 private:
 	HANDLE									m_hIOCP;

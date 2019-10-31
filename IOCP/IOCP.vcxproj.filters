@@ -21,12 +21,6 @@
     <ClCompile Include="address.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="channel.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="DataBuffer.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="eng.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -39,18 +33,15 @@
     <ClCompile Include="iocp_server.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="session.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="acceptor.h">
       <Filter>源文件</Filter>
     </ClInclude>
     <ClInclude Include="address.h">
-      <Filter>源文件</Filter>
-    </ClInclude>
-    <ClInclude Include="channel.h">
-      <Filter>源文件</Filter>
-    </ClInclude>
-    <ClInclude Include="DataBuffer.h">
       <Filter>源文件</Filter>
     </ClInclude>
     <ClInclude Include="eng.h">
@@ -69,6 +60,9 @@
       <Filter>源文件</Filter>
     </ClInclude>
     <ClInclude Include="iocp_server.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="session.h">
       <Filter>源文件</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,14 +1,13 @@
 #include "iocp_server.h"
 
-CIocpServer* CIocpServer::iocp_server_ = nullptr;
-
-CIocpServer* CIocpServer::get_iocp_server()
+CIocpServerPtr CIocpServer::iocp_server_ = nullptr;
+CIocpServerPtr CIocpServer::get_iocp_server()
 {
-	if (iocp_server_)
+	if (iocp_server_.get())
 		return iocp_server_;
 	else
 	{
-		iocp_server_ = new CIocpServer();
+		iocp_server_.reset(new CIocpServer());
 		return iocp_server_;
 	}
 }
@@ -21,17 +20,17 @@ CIocpServer::~CIocpServer()
 
 void CIocpServer::init(uint16_t port)
 {
-	iocp_engine_ = CreateTcpEngine();
-	iocp_engine_->SetListenAddr(819200, port, "0.0.0.0", 0x02);
+	iocp_engine_ = get_tcp_engine();
+	iocp_engine_->SetListenAddr(819200, port, "0.0.0.0");
 }
 
 void CIocpServer::start(accept_cb cb)
 {
 	accept_cb_ = cb;
 
-	iocp_engine_->StartEngine(this);
+	iocp_engine_->start(shared_from_this());
 
-	iocp_engine_->Loop();
+	iocp_engine_->loop();
 }
 
 void CIocpServer::session_read_start(uint32_t session_id, read_cb cb)
@@ -43,39 +42,48 @@ void CIocpServer::session_write_data(uint32_t session_id, char* data, uint32_t s
 {
 	map_wirte_cb_[session_id] = cb;
 
-	iocp_engine_->write_data(session_id, data, size);
+	iocp_engine_->WriteData(session_id, data, size);
 }
 
-void CIocpServer::session_close(uint32_t session_id)
+void CIocpServer::session_close(uint32_t session_id, close_cb cb)
 {
+	map_close_cb_[session_id] = cb;
 	iocp_engine_->CloseSession(session_id);
 }
 
 void CIocpServer::stop()
 {
-	iocp_engine_->DestoryEngine();
+	iocp_engine_->stop();
 }
 
-bool CIocpServer::OnAccepted(uint32_t nConnId)
+bool CIocpServer::OnAccepted(uint32_t session_id)
 {
 	if (accept_cb_)
-		accept_cb_(this, nConnId);
+		accept_cb_(shared_from_this(), session_id);
 
 	return true;
 }
-void CIocpServer::OnRead(uint32_t nConnId, char *pData, int32_t iread)
+void CIocpServer::OnRead(uint32_t session_id, char *data, int32_t iread)
 {
-	auto itor = map_read_cb_.find(nConnId);
+	auto itor = map_read_cb_.find(session_id);
 	if (itor != map_read_cb_.end())
-		(itor->second)(this, nConnId, pData, iread);
+		(itor->second)(shared_from_this(), session_id, data, iread);
 }
-void  CIocpServer::OnWrite(uint32_t nConnId, int32_t iwrite)
+void  CIocpServer::OnWrite(uint32_t session_id, int32_t iwrite)
 {
-	auto itor = map_wirte_cb_.find(nConnId);
+	auto itor = map_wirte_cb_.find(session_id);
 	if (itor != map_wirte_cb_.end())
-		(itor->second)(this, nConnId, iwrite);
+		(itor->second)(shared_from_this(), session_id, iwrite);
 }
-void CIocpServer::OnConnect(bool isOK, uint32_t nConnId, void *pAttData)
+
+void CIocpServer::OnClose(uint32_t session_id)
 {
-	int a = 1;
+	auto itor = map_close_cb_.find(session_id);
+	if (itor != map_close_cb_.end())
+		(itor->second)(shared_from_this(), session_id);
+}
+
+void CIocpServer::OnConnect(bool isOK, uint32_t session_id, void *pAttData)
+{
+	
 }

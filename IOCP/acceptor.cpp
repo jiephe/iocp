@@ -1,14 +1,15 @@
 #include "acceptor.h"
 #include "address.h"
-#include "channel.h"
+#include "session.h"
+#include "limit_define.h"
 
 #pragma comment(lib, "WS2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
 
-bool QAcceptor::StartAcceptor ( QChannelManager*pMgr, uint16_t nPort, const char * szIP , uint32_t nProtocolType, uint32_t nMaxMsgSize )
+bool QAcceptor::start (std::shared_ptr<QSessionManager> ptr, uint16_t nPort, const char * szIP, uint32_t nMaxMsgSize )
 {
-	m_pMgr=pMgr;
-	m_nMaxMsgSize		= nMaxMsgSize;
+	m_pMgr	= ptr;
+	m_nMaxMsgSize = nMaxMsgSize;
 
 	m_hListenSocket = WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
 	if ( INVALID_SOCKET == m_hListenSocket ) return false;
@@ -21,23 +22,6 @@ bool QAcceptor::StartAcceptor ( QChannelManager*pMgr, uint16_t nPort, const char
 		return false;
 	}
 
-	/*
-	BOOL bFlag = TRUE;
-	if(0!=setsockopt(m_hListenSocket,SOL_SOCKET,SO_REUSEADDR,(const char*)&bFlag,sizeof(bFlag)))
-	{
-		printf("setsockopt  SO_REUSEADDR Error:%d\n",WSAGetLastError());
-		closesocket ( m_hListenSocket );
-		return false;
-	}
-	bFlag = FALSE;
-	if(0!=setsockopt(m_hListenSocket,SOL_SOCKET,SO_EXCLUSIVEADDRUSE,(const char*)&bFlag,sizeof(bFlag)))
-	{
-		printf("setsockopt SO_EXCLUSIVEADDRUSE  Error:%d\n",WSAGetLastError());
-		closesocket ( m_hListenSocket );
-		return false;
-	}
-	*/
-
 	CAddress address ( szIP, nPort );
 	int nRet = bind ( m_hListenSocket, address.Sockaddr(), sizeof ( struct sockaddr ) );
 	if ( 0 != nRet )
@@ -48,7 +32,7 @@ bool QAcceptor::StartAcceptor ( QChannelManager*pMgr, uint16_t nPort, const char
 		return false;
 	}
 
-	if ( !pMgr->get_iocp_service()->BindHandleToIocp ( ( HANDLE ) m_hListenSocket ) )
+	if ( !m_pMgr->get_iocp_service()->BindHandleToIocp ( ( HANDLE ) m_hListenSocket ) )
 	{
 		closesocket ( m_hListenSocket );
 		return false;
@@ -63,14 +47,50 @@ bool QAcceptor::StartAcceptor ( QChannelManager*pMgr, uint16_t nPort, const char
 		return false;
 	}
 
-	for ( size_t i = 0; i < 1000; ++i )
-		AddNewAcceptEx();
-
+	AddBatchAccept();
 	return true;
 }
 
-bool QAcceptor::AddNewAcceptEx()
+void QAcceptor::AddBatchAccept()
 {
+#ifndef USE_ACCEPT_EXTENTION
+	for (size_t i = 0; i < MAX_FREE_SESSION; ++i)
+		AddOneAcceptEx();
+#else
+	GUID acceptex_guid = WSAID_ACCEPTEX;
+	DWORD bytes = 0;
+
+	int nRet = WSAIoctl(m_hListenSocket,
+						SIO_GET_EXTENSION_FUNCTION_POINTER,
+						&acceptex_guid,
+						sizeof(acceptex_guid),
+						&fnAcceptEx_,
+						sizeof(fnAcceptEx_),
+						&bytes,
+						NULL,
+						NULL);
+	if (nRet == SOCKET_ERROR)
+	{
+		printf("failed to load AcceptEx: %d\n", WSAGetLastError());
+		return;
+	}
+	for (size_t i = 0; i < MAX_FREE_SESSION; ++i)
+		AddOneAcceptExtension();
+#endif
+}
+
+void QAcceptor::AddOneAccept()
+{
+#ifndef USE_ACCEPT_EXTENTION
+	AddOneAcceptEx();
+#else
+	AddOneAcceptExtension();
+#endif
+}
+
+bool QAcceptor::AddOneAcceptEx()
+{
+	DWORD dwRecvNumBytes = 0;
 	AcceptHandlerOverLapped *p = new AcceptHandlerOverLapped;
 	p->m_hSocket = WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
 	if ( INVALID_SOCKET == p->m_hSocket )
@@ -80,59 +100,101 @@ bool QAcceptor::AddNewAcceptEx()
 	}
 	p->m_acceptor = this;
 
-	if ( !AcceptEx ( m_hListenSocket,
-						  p->m_hSocket,
-						  p->m_buffer,
-						  0,//512-(sizeof(SOCKADDR_IN)+16)*2,
-						  sizeof ( SOCKADDR_IN ) + 16,
-						  sizeof ( SOCKADDR_IN ) + 16,
-						  &p->m_dwBytesRead, &p->m_overlap )
-		)
+	if (!AcceptEx (m_hListenSocket,
+					p->m_hSocket,
+					p->m_buffer,
+					//MAX_BUFF_SIZE -(sizeof(SOCKADDR_IN)+16)*2,
+					0, //如果这里不设置为0 accept之后就会有数据传上来 如果设置为0 则当WSARecv的WSABUF的buflen不为0时 数据才会传上来(GetQueuedCompletionStatus 返回)
+					sizeof ( SOCKADDR_IN ) + 16,
+					sizeof ( SOCKADDR_IN ) + 16,
+					&dwRecvNumBytes, 
+					&p->m_overlap))
 	{
-		int nLastErr =WSAGetLastError();
-		if ( WSA_IO_PENDING != nLastErr )
+		if (WSA_IO_PENDING != WSAGetLastError())
 		{
-#ifdef _DEBUG
-			printf("AcceptEx Error\n");
-#endif
-			closesocket ( p->m_hSocket );
+			printf("failed to call AcceptEx: %d\n", WSAGetLastError());
+			closesocket(p->m_hSocket);
 			delete p;
 			return false;
 		}
 	}
 
 	m_needDelete[p] = p;
-
 	return true;
 }
 
-void QAcceptor::OnAccpetFinish ( AcceptHandler*pHandler )
+bool QAcceptor::AddOneAcceptExtension()
 {
+	DWORD dwRecvNumBytes = 0;
+
+	AcceptHandlerOverLapped *p = new AcceptHandlerOverLapped;
+	p->m_hSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+	if (INVALID_SOCKET == p->m_hSocket)
+	{
+		delete p;
+		return false;
+	}
+	p->m_acceptor = this;
+
+	int nRet = fnAcceptEx_(m_hListenSocket, 
+						p->m_hSocket,
+						p->m_buffer,
+						//MAX_BUFF_SIZE - (2 * (sizeof(SOCKADDR_STORAGE) + 16)),
+						0,	//如果这里不设置为0 accept之后就会有数据传上来 如果设置为0 则当WSARecv的WSABUF的buflen不为0时 数据才会传上来(GetQueuedCompletionStatus 返回)
+						sizeof(SOCKADDR_STORAGE) + 16, 
+						sizeof(SOCKADDR_STORAGE) + 16,
+						&dwRecvNumBytes,
+						&p->m_overlap);
+	if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError()))
+	{
+		printf("failed to call fnAcceptEx_: %d\n", WSAGetLastError());
+		closesocket(p->m_hSocket);
+		delete p;
+		return false;
+	}
+
+	m_needDelete[p] = p;
+	return true;
+}
+
+void QAcceptor::OnAccpetFinish(AcceptHandler* pHandler)
+{
+#ifndef USE_ACCEPT_EXTENTION
 	SOCKADDR_IN* remote = NULL;
 	SOCKADDR_IN* local = NULL;
 
 	int remoteLen	= sizeof ( SOCKADDR_IN );
 	int localLen	= sizeof ( SOCKADDR_IN );
 
-	GetAcceptExSockaddrs (
-		pHandler->m_buffer,
-		0,
-		sizeof ( SOCKADDR_IN ) + 16,
-		sizeof ( SOCKADDR_IN ) + 16,
-		( LPSOCKADDR* ) &local,
-		&localLen,
-		( LPSOCKADDR* ) &remote,
-		&remoteLen
-	);
+	GetAcceptExSockaddrs (pHandler->m_buffer,
+						0,
+						sizeof(SOCKADDR_IN) + 16,
+						sizeof(SOCKADDR_IN) + 16,
+						(LPSOCKADDR*)&local,
+						&localLen,
+						(LPSOCKADDR*)&remote,
+						&remoteLen);
+#else
+	int nRet = setsockopt(pHandler->m_hSocket,
+							SOL_SOCKET,
+							SO_UPDATE_ACCEPT_CONTEXT,
+							(char *)&m_hListenSocket,
+							sizeof(m_hListenSocket));
+	if (nRet == SOCKET_ERROR)
+	{
+		printf("setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed to update accept socket\n");
+		return;
+	}
+#endif
 
-	m_pMgr->OnAccepted( pHandler->m_hSocket, local, remote, m_nMaxMsgSize );
+	m_pMgr->OnAccepted(pHandler->m_hSocket, m_nMaxMsgSize);
 }
 
 QAcceptor::QAcceptor()
 {
 }
 
-void QAcceptor::DestroyAcceptor()
+void QAcceptor::stop()
 {
 	closesocket ( m_hListenSocket );
 }
@@ -159,8 +221,7 @@ void QAcceptor::RemoveFromMap ( AcceptHandler*p )
 void QAcceptor::AcceptHandler::HandleComplete ( ULONG_PTR , size_t  )
 {
 	m_acceptor->RemoveFromMap ( this );
-	m_acceptor->AddNewAcceptEx();
-
+	m_acceptor->AddOneAccept();
 	m_acceptor->OnAccpetFinish ( this );
 }
 
@@ -170,8 +231,7 @@ void QAcceptor:: AcceptHandler::HandleError ( ULONG_PTR , size_t  )
 
 	closesocket ( m_hSocket );
 	m_hSocket = INVALID_SOCKET;
-
-	m_acceptor->AddNewAcceptEx();
+	m_acceptor->AddOneAccept();
 }
 
 void QAcceptor::AcceptHandler::Destroy()

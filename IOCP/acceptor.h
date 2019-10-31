@@ -1,8 +1,10 @@
 #include "itf_tcpengine.h"
 #include "service.h"
-class QAcceptor;
-class QChannelManager;
+#include "limit_define.h"
 #include <map>
+
+class QAcceptor;
+class QSessionManager;
 
 class QAcceptor
 {
@@ -15,20 +17,15 @@ class QAcceptor
 		virtual void Destroy();
 
 		SOCKET m_hSocket;
-#define BUFF_LEN (sizeof ( SOCKADDR_IN )+16)*2+16
-		// 用来存放地址
-		char m_buffer[BUFF_LEN ];
-
+		char m_buffer[MAX_BUFF_SIZE];
 		QAcceptor *m_acceptor;
-		// 没有用
-		DWORD m_dwBytesRead;
 	};
 	typedef TOverlappedWrapper<AcceptHandler> AcceptHandlerOverLapped;
 #pragma endregion 
 
 public:
-	bool StartAcceptor (QChannelManager*pMgr, uint16_t nPort, const char * szIP ,uint32_t nProtocolType,uint32_t nMaxMsgSize);
-	void DestroyAcceptor();
+	bool start (std::shared_ptr<QSessionManager>, uint16_t nPort, const char * szIP, uint32_t nMaxMsgSize);
+	void stop();
 
 public:
 	QAcceptor();
@@ -36,12 +33,18 @@ public:
 
 private:
 	void RemoveFromMap(AcceptHandler*p); 
-	bool AddNewAcceptEx();
+
+	void AddOneAccept();
+	void AddBatchAccept();
+	bool AddOneAcceptEx();	
+	bool AddOneAcceptExtension();
+
 	void OnAccpetFinish ( AcceptHandler*pHandler );
 
 private:
-	SOCKET  m_hListenSocket;
-	uint32_t m_nMaxMsgSize;
-	std::map<AcceptHandler*, AcceptHandlerOverLapped*> m_needDelete;
-	QChannelManager* m_pMgr;
+	SOCKET												m_hListenSocket;
+	uint32_t											m_nMaxMsgSize;
+	std::map<AcceptHandler*, AcceptHandlerOverLapped*>	m_needDelete;
+	std::shared_ptr<QSessionManager>					m_pMgr;
+	LPFN_ACCEPTEX										fnAcceptEx_;
 };

@@ -1,8 +1,8 @@
 #pragma once
-#define MAX_FREE_CHANNEL 1000
 
-#define MAX_FREE_DB 4096
+#define MAX_FREE_SESSION 1000
 
-#define OUTBUFF_ALIGN 8
+/* The number of milliseconds in one second. */
+#define SECOND_MILLISEC 1000
 
-#define DB_SIZE 8180
+#define MAX_BUFF_SIZE       8192

@@ -144,8 +144,7 @@
   <ItemGroup>
     <ClCompile Include="acceptor.cpp" />
     <ClCompile Include="address.cpp" />
-    <ClCompile Include="channel.cpp" />
-    <ClCompile Include="DataBuffer.cpp" />
+    <ClCompile Include="session.cpp" />
     <ClCompile Include="eng.cpp" />
     <ClCompile Include="iocp_server.cpp" />
     <ClCompile Include="main.cpp" />
@@ -154,8 +153,7 @@
   <ItemGroup>
     <ClInclude Include="acceptor.h" />
     <ClInclude Include="address.h" />
-    <ClInclude Include="channel.h" />
-    <ClInclude Include="DataBuffer.h" />
+    <ClInclude Include="session.h" />
     <ClInclude Include="eng.h" />
     <ClInclude Include="iocp_server.h" />
     <ClInclude Include="itf_tcpengine.h" />

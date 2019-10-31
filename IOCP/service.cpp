@@ -1,8 +1,6 @@
 #include <Windows.h>
 #include "service.h"
-
-/* The number of milliseconds in one second. */
-#define UV__MILLISEC 1000
+#include "limit_define.h"
 
 void QEngIOCPEventQueueService::update_loop_timer(double scale)
 {
@@ -32,7 +30,7 @@ void QEngIOCPEventQueueService::poll(uint32_t timeout)
 		if (NULL != pOverlap)
 		{
 			if (GetLastError() != 0)
-				printf("GetQueuedCompletionStatus error : %d\n", GetLastError());
+				printf("GetQueuedCompletionStatus ret: %d error: %d\n", ret, GetLastError());
 
 			if (ret)
 				pOverlap->m_pHandler->HandleComplete(pKey, (size_t)nIOBytes);
@@ -47,7 +45,7 @@ void QEngIOCPEventQueueService::poll(uint32_t timeout)
 		}
 		else if (timeout > 0)
 		{
-			update_loop_timer(UV__MILLISEC);
+			update_loop_timer(SECOND_MILLISEC);
 			if (timeout_time > loop_time_)
 			{
 				timeout = (DWORD)(timeout_time - loop_time_);
@@ -64,7 +62,7 @@ void QEngIOCPEventQueueService::run()
 {
 	for ( ;; )
 	{
-		update_loop_timer(UV__MILLISEC);
+		update_loop_timer(SECOND_MILLISEC);
 
 		process_timers();
 
@@ -78,13 +76,11 @@ void QEngIOCPEventQueueService::run()
 				timeout = mini->first - loop_time_;
 		}
 
-		//PostRequest(0, 0, 0);
-
 		poll(timeout);
 	}
 }
 
-bool QEngIOCPEventQueueService::BeginService()
+bool QEngIOCPEventQueueService::start()
 {
 	WSADATA WSAData;
 	int iErrorCode = WSAStartup (MAKEWORD(2, 2), &WSAData);
@@ -101,24 +97,15 @@ bool QEngIOCPEventQueueService::BeginService()
 	else
 		hrtime_interval_ = 0;
 
-	update_loop_timer(UV__MILLISEC);
+	update_loop_timer(SECOND_MILLISEC);
 	return true;
 }
 
-void QEngIOCPEventQueueService::DestroyService()
+void QEngIOCPEventQueueService::stop()
 {
 	::PostQueuedCompletionStatus(m_hIOCP,0,NULL,NULL);
 
 	WSACleanup();
-}
-
-bool QEngIOCPEventQueueService::PostUserEvent(IEngEventHandler*pEvtHandler)
-{
-	TOverlappedWrapper<UserEventHandler>* handler = new TOverlappedWrapper<UserEventHandler>();
-	handler->m_pUserHandler = pEvtHandler;
-
-#pragma warning(disable:4800)
-	return PostQueuedCompletionStatus(m_hIOCP, 0, (ULONG_PTR)handler, &handler->m_overlap);
 }
 
 bool QEngIOCPEventQueueService::BindHandleToIocp( HANDLE hHandle )
@@ -126,7 +113,7 @@ bool QEngIOCPEventQueueService::BindHandleToIocp( HANDLE hHandle )
 	return (NULL != ::CreateIoCompletionPort(hHandle, m_hIOCP, 0, 1));
 }
 
-bool QEngIOCPEventQueueService::PostRequest(DWORD, void * pKey, LPOVERLAPPED ol)
+BOOL QEngIOCPEventQueueService::PostRequest(DWORD, void * pKey, LPOVERLAPPED ol)
 {
 	return PostQueuedCompletionStatus(m_hIOCP, 0, (ULONG_PTR)pKey, ol);
 }

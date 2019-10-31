@@ -1,34 +1,41 @@
 #include "iocp_server.h"
 #include <vector>
 
-void OnWrite(CIocpServer* iocp, uint32_t session_id, int32_t size)
+void OnWrite(CIocpServerPtr iocp, uint32_t session_id, int32_t size)
 {
-	if (size < 0)
-		iocp->session_close(session_id);
-	printf("conn: %u write %d\n", session_id, size);
+	printf("session: %u write %d\n", session_id, size);
 }
 
-void OnRead(CIocpServer* iocp, uint32_t session_id, char* data, int32_t size)
+void OnClose(CIocpServerPtr iocp, uint32_t session_id)
 {
-	int a = 1;
-	printf("conn: %u read %d\n", session_id, size);
+	printf("session: %u close complete!\n", session_id);
+}
+
+void OnRead(CIocpServerPtr iocp, uint32_t session_id, char* data, int32_t size)
+{
 	if (size < 0)
-		iocp->session_close(session_id);
+	{
+		printf("session: %u read %d\n", session_id, size);
+		iocp->session_close(session_id, OnClose);
+	}
 	else
 	{
-		std::vector<char> send_data(10000, 'a');
-		iocp->session_write_data(session_id, &send_data[0], send_data.size(), OnWrite);
+		for (int i = 0; i < 130; ++i)
+		{
+			std::vector<char> send_data(10000, 'a');
+			iocp->session_write_data(session_id, &send_data[0], send_data.size(), OnWrite);
+		}
 	}
 }
 
-void OnAccept(CIocpServer* iocp, uint32_t session_id)
+void OnAccept(CIocpServerPtr iocp, uint32_t session_id)
 {
 	iocp->session_read_start(session_id, OnRead);
 }
 
 int __cdecl main(int argc, char* argv[])
 {
-	CIocpServer* iocp = CIocpServer::get_iocp_server();
+	CIocpServerPtr iocp = CIocpServer::get_iocp_server();
 
 	iocp->init(26000);
 
