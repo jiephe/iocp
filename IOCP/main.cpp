@@ -25,7 +25,7 @@ void OnRead(CIocpServerPtr iocp, uint32_t session_id, char* data, int32_t size)
 	{
 		///for (int i = 0; i < 10; ++i)
 		{
-			std::vector<char> send_data(ONE_M, 'a');
+			std::vector<char> send_data(400, 'a');
 			iocp->session_write_data(session_id, &send_data[0], send_data.size(), OnWrite);
 		}
 	}

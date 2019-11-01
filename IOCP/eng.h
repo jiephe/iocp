@@ -1,6 +1,6 @@
 #pragma once
 
-#include "itf_tcpengine.h"
+#include "iocp.h"
 #include "acceptor.h"
 #include "service.h"
 #include "session.h"
@@ -11,19 +11,6 @@ static TcpEngingPtr tcp_engine_ = nullptr;
 
 class QEngine : public ITcpEngine
 {
-	bool											m_hasListen;
-	TcpSinkPtr										tcp_sink_;
-	QAcceptorPtr									acceptor_;
-	IocpServicePtr									iocp_service_;
-	QSessionMgrPtr									session_manager_;
-
-	uint32_t						m_nListenMaxMsgSize;
-	uint16_t						m_nListenPort;
-	std::string						m_strListenIp;
-	LPFN_CONNECTEX					m_pfnConnectEx;
-
-	IocpTimer						pulse_timer_;
-
 public:
 	QEngine();
 	~QEngine();
@@ -44,22 +31,36 @@ public:
 private:
 
 #pragma region Connector
-	class Connector:public IIOCPHandler
+	class Connector:public CBaseOverlapped, public std::enable_shared_from_this<Connector>
 	{
 	public:
-		void *m_pAtt;
-		DWORD m_dwBytes;
-		SOCKADDR_IN m_remoteAddr;
-		SOCKADDR_IN m_localAddr;
+		void*			m_pAtt;
+		DWORD			m_dwBytes;
+		SOCKADDR_IN		m_remoteAddr;
+		SOCKADDR_IN		m_localAddr;
 
-		SOCKET m_hSocket;
-		uint32_t m_nMaxMsgSize;
-		QSessionMgrPtr session_mgr_;
+		SOCKET			m_hSocket;
+		uint32_t		m_nMaxMsgSize;
+		QSessionMgrPtr	session_mgr_;
 
 		virtual void HandleComplete(ULONG_PTR pKey,size_t nIOBytes);
 		virtual void HandleError(ULONG_PTR pKey,size_t nIOBytes);
-		virtual void Destroy();
+		virtual void Destroy() {}
 	};	
-	typedef  TOverlappedWrapper<Connector> ConnectorOverLapped;
+	using ConnectorPtr = std::shared_ptr<Connector>;
 #pragma endregion Connector
+
+	bool											m_hasListen;
+	TcpSinkPtr										tcp_sink_;
+	QAcceptorPtr									acceptor_;
+	IocpServicePtr									iocp_service_;
+	QSessionMgrPtr									session_manager_;
+
+	uint32_t										m_nListenMaxMsgSize;
+	uint16_t										m_nListenPort;
+	std::string										m_strListenIp;
+	LPFN_CONNECTEX									m_pfnConnectEx;
+
+	IocpTimer										pulse_timer_;
+	ConnectorPtr									connector_;
 };

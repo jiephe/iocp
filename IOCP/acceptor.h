@@ -1,8 +1,8 @@
 #pragma once
 
-#include "itf_tcpengine.h"
+#include "iocp.h"
 #include "session.h"
-#include "limit_define.h"
+#include "macro.h"
 #include <map>
 
 class QAcceptor;
@@ -11,7 +11,7 @@ using QAcceptorPtr = std::shared_ptr<QAcceptor>;
 class QAcceptor : public std::enable_shared_from_this<QAcceptor>
 {
 #pragma region Accept
-	class AcceptHandler: public IIOCPHandler, public std::enable_shared_from_this<AcceptHandler>
+	class AcceptHandler: public CBaseOverlapped, public std::enable_shared_from_this<AcceptHandler>
 	{
 	public:
 		virtual void HandleComplete ( ULONG_PTR pKey, size_t nIOBytes );
@@ -32,7 +32,6 @@ class QAcceptor : public std::enable_shared_from_this<QAcceptor>
 		char			m_buffer[MAX_BUFF_SIZE];
 		QAcceptorPtr	acceptor;
 	};
-	typedef TOverlappedWrapper<AcceptHandler> AcceptHandlerOverLapped;
 #pragma endregion 
 
 	using AcceptHandlerPtr = std::shared_ptr<AcceptHandler>;

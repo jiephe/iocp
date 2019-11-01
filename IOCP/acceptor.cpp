@@ -90,7 +90,7 @@ void QAcceptor::AddOneAccept()
 bool QAcceptor::AddOneAcceptEx()
 {
 	DWORD dwRecvNumBytes = 0;
-	auto p = std::make_shared<AcceptHandlerOverLapped>();
+	auto p = std::make_shared<AcceptHandler>();
 	p->m_hSocket = WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
 	if ( INVALID_SOCKET == p->m_hSocket )
 		return false;
@@ -122,7 +122,7 @@ bool QAcceptor::AddOneAcceptExtension()
 {
 	DWORD dwRecvNumBytes = 0;
 
-	auto p = std::make_shared<AcceptHandlerOverLapped>();
+	auto p = std::make_shared<AcceptHandler>();
 	p->m_hSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (INVALID_SOCKET == p->m_hSocket)
 		return false;

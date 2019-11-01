@@ -87,34 +87,29 @@ void QEngine::WriteData(uint32_t session_id, char* data, uint32_t size)
 	session_manager_->WriteData(session_id, data, size);
 }
 
-bool QEngine::ConnectTo ( const char * szIp, uint16_t nPort,  void *pAtt, uint32_t nMaxMsgSize)
+bool QEngine::ConnectTo(const char * szIp, uint16_t nPort, void *pAtt, uint32_t nMaxMsgSize)
 {
-	ConnectorOverLapped *p = new ConnectorOverLapped;
-	for ( ;; )
+	auto p = std::make_shared<Connector>();
+	while (true)
 	{
-		p->m_hSocket =  WSASocket ( AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED );
+		p->m_hSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 		if (INVALID_SOCKET == p->m_hSocket)
-		{
-			delete p;
 			return false;
-		}
 			
-		CAddress address ( NULL, 0 );
-		int nRet = bind ( p->m_hSocket, address.Sockaddr(), sizeof ( struct sockaddr ) );
-		if ( 0 != nRet )
+		CAddress address(NULL, 0);
+		int nRet = bind(p->m_hSocket, address.Sockaddr(), sizeof(struct sockaddr));
+		if (0 != nRet)
 		{
-			closesocket ( p->m_hSocket );
-			// 本地联接数可能满了
-			delete p;
+			closesocket(p->m_hSocket);
 			return false;
 		}
 
-		int nSize = sizeof ( SOCKADDR_IN );
-		getsockname ( p->m_hSocket, ( sockaddr* ) & p->m_localAddr, &nSize );
-		if (ntohs( p->m_localAddr.sin_port) == nPort )
+		int nSize = sizeof(SOCKADDR_IN);
+		getsockname(p->m_hSocket, (sockaddr*)& p->m_localAddr, &nSize);
+		if (ntohs( p->m_localAddr.sin_port) == nPort)
 		{
-			printf ( "Warning: Bind Port Is Same with Remote Port :%d\n" ,nPort);
-			closesocket ( p->m_hSocket );
+			printf("Warning: Bind Port Is Same with Remote Port :%d\n", nPort);
+			closesocket(p->m_hSocket);
 			p->m_hSocket = NULL;
 			continue;
 		}
@@ -122,17 +117,17 @@ bool QEngine::ConnectTo ( const char * szIp, uint16_t nPort,  void *pAtt, uint32
 			break;
 	}
 
-	CAddress addr ( szIp, nPort );
-	memcpy ( &p->m_remoteAddr, addr.Sockaddr(), sizeof ( SOCKADDR_IN ) );
+	CAddress addr(szIp, nPort);
+	memcpy(&p->m_remoteAddr, addr.Sockaddr(), sizeof(SOCKADDR_IN));
 
 	p->m_nMaxMsgSize	= nMaxMsgSize;
 	p->m_dwBytes		= 0;
 	p->session_mgr_		= session_manager_;
 	p->m_pAtt			= pAtt;
 
-	if (iocp_service_->BindHandleToIocp ( ( HANDLE ) p->m_hSocket ) )
+	if (iocp_service_->BindHandleToIocp((HANDLE)p->m_hSocket))
 	{
-		if ( NULL == m_pfnConnectEx )
+		if (NULL == m_pfnConnectEx)
 		{
 			GUID guid = WSAID_CONNECTEX;
 			DWORD dwBytes = 0;
@@ -147,38 +142,34 @@ bool QEngine::ConnectTo ( const char * szIp, uint16_t nPort,  void *pAtt, uint32
 						  NULL );
 		}
 
-		if ( !m_pfnConnectEx ( p->m_hSocket , ( sockaddr* ) &p->m_remoteAddr,  sizeof ( sockaddr  ), NULL, 0, &p->m_dwBytes, &p->m_overlap ) )
+		if (!m_pfnConnectEx(p->m_hSocket, (sockaddr*)&p->m_remoteAddr, sizeof(sockaddr), NULL, 0, &p->m_dwBytes, &p->m_overlap))
 		{
-			DWORD dwErr = WSAGetLastError ();
-			if ( dwErr == ERROR_IO_PENDING )
-				return true;
+			if (WSAGetLastError() != ERROR_IO_PENDING)
+				return false;
 		}
+
+		connector_ = p;
 	}
 
-	closesocket ( p->m_hSocket );
-	p->Destroy();
+	closesocket(p->m_hSocket);
 	return false;
 }
 
-void QEngine::Connector::HandleComplete ( ULONG_PTR , size_t  )
+void QEngine::Connector::HandleComplete(ULONG_PTR, size_t)
 {
-	session_mgr_->HandleConnecttoOK ( m_hSocket, &m_localAddr, &m_remoteAddr, m_nMaxMsgSize, m_pAtt );
+	session_mgr_->HandleConnecttoOK(m_hSocket, &m_localAddr, &m_remoteAddr, m_nMaxMsgSize, m_pAtt);
 }
 
-void QEngine::Connector::HandleError ( ULONG_PTR , size_t  )
+void QEngine::Connector::HandleError(ULONG_PTR, size_t)
 {
-	if ( INVALID_SOCKET != m_hSocket )
+	if (INVALID_SOCKET != m_hSocket)
 	{
-		closesocket ( m_hSocket );
+		closesocket(m_hSocket);
 		m_hSocket = INVALID_SOCKET;
 	}
 
-	session_mgr_->HandleConnecttoFail ( m_pAtt );
+	session_mgr_->HandleConnecttoFail(m_pAtt);
 }
 
-void QEngine::Connector::Destroy()
-{
-	delete this;
-}
 
 

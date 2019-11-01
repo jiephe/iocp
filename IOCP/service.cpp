@@ -1,6 +1,6 @@
 #include <Windows.h>
 #include "service.h"
-#include "limit_define.h"
+#include "macro.h"
 
 void QEngIOCPEventQueueService::update_loop_timer(double scale)
 {
@@ -16,28 +16,31 @@ void QEngIOCPEventQueueService::update_loop_timer(double scale)
 	loop_time_ = (uint64_t)((double)counter.QuadPart * hrtime_interval_ * scale);
 }
 
+
 bool QEngIOCPEventQueueService::poll(uint32_t timeout)
 {
 	DWORD nIOBytes;
 	ULONG_PTR pKey;
-	QOverlapped* pOverlap;
+	LPOVERLAPPED pOverlap;
 
 	uint64_t timeout_time = loop_time_ + timeout;
 
 	for (int repeat = 0; ; repeat++)
 	{
-		BOOL ret = ::GetQueuedCompletionStatus(m_hIOCP, &nIOBytes, &pKey, (LPOVERLAPPED*)&pOverlap, timeout);
+		BOOL ret = ::GetQueuedCompletionStatus(m_hIOCP, &nIOBytes, &pKey, &pOverlap, timeout);
 		if (NULL != pOverlap)
 		{
+			CBaseOverlapped* pBase = CONTAINING_RECORD(pOverlap, CBaseOverlapped, m_overlap);
+
 			if (GetLastError() != 0)
 				printf("GetQueuedCompletionStatus ret: %d error: %d\n", ret, GetLastError());
 
 			if (ret)
-				pOverlap->m_pHandler->HandleComplete(pKey, (size_t)nIOBytes);
+				pBase->HandleComplete(pKey, (size_t)nIOBytes);
 			else
-				pOverlap->m_pHandler->HandleError(pKey, WSAGetLastError());
+				pBase->HandleError(pKey, WSAGetLastError());
 
-			pOverlap->m_pHandler->Destroy();
+			pBase->Destroy();
 		}
 		else if (GetLastError() != WAIT_TIMEOUT)
 		{
@@ -76,7 +79,7 @@ void QEngIOCPEventQueueService::run()
 			if (mini->first <= loop_time_)
 				timeout = 0;
 			else
-				timeout = mini->first - loop_time_;
+				timeout = (uint32_t)(mini->first - loop_time_);
 		}
 
 		if (poll(timeout))

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "itf_tcpengine.h"
+#include "iocp.h"
 #include "overlapped.h"
 #include "service.h"
 #include <map>
@@ -27,6 +27,9 @@ public:
 	void stop();
 
 public:
+	void remove_overlapped(BaseOverlappedPtr ptr);
+
+public:
 	void HandleConnecttoOK( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nMaxMsgSize ,void *pAtt);
 	void HandleConnecttoFail(void *pAtt);
 
@@ -43,49 +46,39 @@ public:
 
 private:
 #pragma region CloseSession
-	class CloseSession : public IIOCPHandler
+	class CloseSession : public CBaseOverlapped, public std::enable_shared_from_this<CloseSession>
 	{
 	public:
 		virtual void HandleComplete(ULONG_PTR pKey, size_t);
 		virtual void HandleError(ULONG_PTR, size_t) {}
-		virtual void Destroy() {delete this;}
+		virtual void Destroy();
 		QSessionMgrPtr		m_pMgr;
 		uint32_t			m_nSessionId;
 	};
-	typedef TOverlappedWrapper<CloseSession> CloseSessionOverLapped;
 #pragma endregion CloseSession
-	friend class CloseSession;
 
 #pragma region AppendSend
-	class AppendSend: public IIOCPHandler
+	class AppendSend: public CBaseOverlapped, public std::enable_shared_from_this<AppendSend>
 	{
 	public:
-		virtual void HandleComplete ( ULONG_PTR pKey, size_t nIOBytes );
-		virtual void HandleError ( ULONG_PTR pKey, size_t nIOBytes );
+		virtual void HandleComplete(ULONG_PTR pKey, size_t nIOBytes);
+		virtual void HandleError(ULONG_PTR pKey, size_t nIOBytes) {}
 		virtual void Destroy();
-		QSessionMgrPtr m_pMgr;
-	private:
-		char*		m_pBuffer;
-		size_t		m_nBuffLen;
-		uint32_t	m_nSessionId;
-	public:
-		bool AppendBuffer ( uint32_t session_id, char *pData, uint32_t nBytes );
-		AppendSend();
-		~AppendSend();
+
+		QSessionMgrPtr	m_pMgr;
+		std::string		data_buffer;
+		uint32_t		m_nSessionId;
 	};
-	typedef TOverlappedWrapper<AppendSend> AppendSendOverLapped;
 #pragma endregion AppendSend
 
-	friend class AppendSend;
+	std::map<BaseOverlappedPtr, BaseOverlappedPtr>	overlapped_list_;
 };
 
 class QSession : public std::enable_shared_from_this<QSession>
 {
 #pragma region SendHandler
-	class SendHandler: public IIOCPHandler
+	class SendHandler: public CBaseOverlapped, public std::enable_shared_from_this<SendHandler>
 	{
-	public:
-		SendHandler();
 	public:
 		virtual void HandleComplete ( ULONG_PTR pKey, size_t nIOBytes );
 		virtual void HandleError ( ULONG_PTR pKey, size_t nIOBytes );
@@ -95,11 +88,10 @@ class QSession : public std::enable_shared_from_this<QSession>
 		WSABUF				m_sendBuff;
 		QSessionPtr			m_pSession;
 	};
-	typedef TOverlappedWrapper<SendHandler> SendHandlerOverLapped;
 #pragma endregion SendHandler
 
 #pragma region RecvHandler
-	class RecvHandler: public IIOCPHandler
+	class RecvHandler: public CBaseOverlapped, public std::enable_shared_from_this<RecvHandler>
 	{
 	public:
 		virtual void HandleComplete ( ULONG_PTR pKey, size_t nIOBytes );
@@ -111,7 +103,6 @@ class QSession : public std::enable_shared_from_this<QSession>
 		WSABUF		m_recvBuff;
 		QSessionPtr	m_pSession;
 	};
-	typedef TOverlappedWrapper<RecvHandler> RecvHandlerOverLapped;
 #pragma endregion RecvHandler
 
 public:
@@ -122,6 +113,9 @@ public:
 	uint32_t get_session_id() { return session_id_; }
 
 	void set_b_closing(bool b) { b_closing_ = b; }
+
+public:
+	void remove_overlapped(BaseOverlappedPtr ptr);
 
 public:
 	void HandleWriteData (char* data, uint32_t size);
@@ -146,4 +140,6 @@ private:
 	QSessionMgrPtr			m_pMgr;
 
 	std::vector<char>		recv_buffer_;
+
+	std::map<BaseOverlappedPtr, BaseOverlappedPtr>	overlapped_list_;
 };
