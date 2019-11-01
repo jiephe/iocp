@@ -6,6 +6,7 @@
 
 void OnWrite(CIocpServerPtr iocp, uint32_t session_id, int32_t size)
 {
+	//size < 0 不用关闭 有错误都会走到OnRead里
 	printf("session: %u write %d\n", session_id, size);
 }
 
@@ -19,6 +20,7 @@ void OnRead(CIocpServerPtr iocp, uint32_t session_id, char* data, int32_t size)
 	if (size < 0)
 	{
 		printf("session: %u read %d\n", session_id, size);
+		//要发消息给GetQueuedCompletionStatus 确保close是最后一个消息(GetQueuedCompletionStatus不会再回调消息了) 同时close之后 不允许再发送其他消息
 		iocp->session_close(session_id, OnClose);
 	}
 	else
