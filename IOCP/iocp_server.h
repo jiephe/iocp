@@ -16,6 +16,8 @@ public:
 	static CIocpServerPtr  get_iocp_server();
 	static CIocpServerPtr  iocp_server_;
 
+	static BOOL WINAPI consoleHandler(DWORD signal);
+
 public:
 	virtual bool OnAccepted(uint32_t session_id);
 	virtual void OnRead(uint32_t session_id, char *data, int32_t iread);

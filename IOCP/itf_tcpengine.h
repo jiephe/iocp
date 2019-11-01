@@ -51,6 +51,7 @@ struct ITcpEngine
 public:
 	virtual bool SetListenAddr(uint32_t nMaxMsgSize, uint16_t nPort, const char * szIp=0)=0;
 	virtual bool start (TcpSinkPtr tcpSink)=0;
+	virtual void break_loop() = 0;
 	virtual void loop() = 0;
 	virtual void stop() = 0;
 	virtual void CloseSession(uint32_t session_id) = 0;

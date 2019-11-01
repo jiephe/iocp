@@ -20,14 +20,14 @@ class QEngIOCPEventQueueService: public IEngIOCPService
 public:
 	virtual bool start() ;
 	virtual void stop();
-
+	virtual void break_loop();
 	virtual void add_iocp_timer(IocpTimer* pTimer, bool bRepeat, uint32_t uMS, timer_cb cb);
 	virtual void kill_iocp_timer(IocpTimer* hHandle);
 
 	void erase_from_hash(void* hash);
 
 	void run();
-	void poll(uint32_t timeout);
+	bool poll(uint32_t timeout);
 
 	void process_timers();
 

@@ -24,6 +24,7 @@ public:
 public:
 	QSessionManager(IocpServicePtr iocpService, TcpSinkPtr tcpSink);
 	virtual ~QSessionManager();
+	void stop();
 
 public:
 	void HandleConnecttoOK( SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nMaxMsgSize ,void *pAtt);
@@ -93,7 +94,6 @@ class QSession : public std::enable_shared_from_this<QSession>
 		std::string			send_data;
 		WSABUF				m_sendBuff;
 		QSessionPtr			m_pSession;
-		bool				m_can_delete;
 	};
 	typedef TOverlappedWrapper<SendHandler> SendHandlerOverLapped;
 #pragma endregion SendHandler
@@ -131,7 +131,6 @@ private:
 	void handleReadCompleted ( bool bSuccess, size_t dwIOBytes , WSABUF *pRecvBuff);
 	void handleWriteCompleted ( bool bSuccess, size_t dwIOBytes, size_t dwWant);
 	bool StartWrite(char* data, uint32_t size);
-	bool StartWriteAgain(SendHandlerOverLapped* p);
 	bool StartRead();
 
 public:

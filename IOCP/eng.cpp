@@ -24,6 +24,7 @@ void QEngine::stop()
 {
 	acceptor_->stop();
 	iocp_service_->kill_iocp_timer(&pulse_timer_);
+	session_manager_->stop();
 	iocp_service_->stop();
 }
 
@@ -44,11 +45,16 @@ bool QEngine::start(TcpSinkPtr tcpSink)
 #if 0
 	{
 		pulse_timer_.userdata = this;
-		Iocp_Service_.add_iocp_timer(&pulse_timer_, true, 1000, timer_callback);
+		iocp_service_->add_iocp_timer(&pulse_timer_, true, 1000, timer_callback);
 	}
 #endif
 
 	return true;
+}
+
+void QEngine::break_loop()
+{
+	iocp_service_->break_loop();
 }
 
 void QEngine::loop()
@@ -59,7 +65,7 @@ void QEngine::loop()
 void QEngine::timer_callback(IocpTimer* pTimer)
 {
 	QEngine* pEng = (QEngine*)pTimer->userdata;
-	//
+	pEng->break_loop();
 }
 
 bool QEngine::SetListenAddr ( uint32_t nMaxMsgSize, uint16_t nPort, const char * szIp)

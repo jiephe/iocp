@@ -16,7 +16,7 @@ void QEngIOCPEventQueueService::update_loop_timer(double scale)
 	loop_time_ = (uint64_t)((double)counter.QuadPart * hrtime_interval_ * scale);
 }
 
-void QEngIOCPEventQueueService::poll(uint32_t timeout)
+bool QEngIOCPEventQueueService::poll(uint32_t timeout)
 {
 	DWORD nIOBytes;
 	ULONG_PTR pKey;
@@ -42,6 +42,7 @@ void QEngIOCPEventQueueService::poll(uint32_t timeout)
 		else if (GetLastError() != WAIT_TIMEOUT)
 		{
 			printf("GetQueuedCompletionStatus error : %d\n", GetLastError());
+			return true;
 		}
 		else if (timeout > 0)
 		{
@@ -56,6 +57,8 @@ void QEngIOCPEventQueueService::poll(uint32_t timeout)
 
 		break;
 	}
+
+	return false;
 }
 
 void QEngIOCPEventQueueService::run()
@@ -76,7 +79,8 @@ void QEngIOCPEventQueueService::run()
 				timeout = mini->first - loop_time_;
 		}
 
-		poll(timeout);
+		if (poll(timeout))
+			break;
 	}
 }
 
@@ -101,10 +105,13 @@ bool QEngIOCPEventQueueService::start()
 	return true;
 }
 
+void QEngIOCPEventQueueService::break_loop()
+{
+	::PostQueuedCompletionStatus(m_hIOCP, 0, NULL, NULL);
+}
+
 void QEngIOCPEventQueueService::stop()
 {
-	::PostQueuedCompletionStatus(m_hIOCP,0,NULL,NULL);
-
 	WSACleanup();
 }
 
@@ -120,7 +127,6 @@ BOOL QEngIOCPEventQueueService::PostRequest(DWORD, void * pKey, LPOVERLAPPED ol)
 
 void QEngIOCPEventQueueService::add_iocp_timer(IocpTimer* pTimer, bool bRepeat, uint32_t uMS, timer_cb cb)
 {
-	return;
 	if (timer_hash_.find(pTimer) == timer_hash_.end())
 	{
 		auto data = std::make_shared<IocpTimerData>();

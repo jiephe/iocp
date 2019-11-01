@@ -31,6 +31,7 @@ public:
 public:
 	virtual bool SetListenAddr(uint32_t nMaxMsgSize,uint16_t nPort,const char * szIp=0);
 	virtual bool start(TcpSinkPtr tcpSink);
+	virtual void break_loop();
 	virtual void loop();
 	virtual void stop();
 	virtual bool ConnectTo ( const  char * szIp, uint16_t nPort,  void *pAttData,uint32_t nMaxMsgSize) ;

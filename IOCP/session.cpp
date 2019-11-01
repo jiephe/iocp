@@ -93,26 +93,6 @@ void QSession::handleWriteCompleted(bool bSuccess, size_t dwIOBytes, size_t dwWa
 		m_pMgr->get_tcp_sink()->OnWrite(session_id_, 0);
 }
 
-bool QSession::StartWriteAgain(SendHandlerOverLapped* p)
-{
-	if (p == nullptr)
-		return false;
-
-	assert(p->send_data.size() > 0);
-	p->m_sendBuff.buf = (char*)p->send_data.c_str();
-	p->m_sendBuff.len = p->send_data.size();
-
-	//每次GetQueuedCompletionStatus 时nIOBytes 至多是p->m_sendBuff.len
-	UINT uRet = WSASend(m_hSocket, &p->m_sendBuff, 1, NULL, 0, &p->m_overlap, NULL);
-	if (uRet == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING)
-	{
-		m_pMgr->get_tcp_sink()->OnWrite(session_id_, -1);
-		return false;
-	}
-
-	return true;
-}
-
 bool QSession::StartWrite(char* data, uint32_t size)
 {
 	if (data == nullptr || size <= 0)
@@ -190,29 +170,16 @@ QSession::~QSession()
 }
 
 QSession::SendHandler::SendHandler()
-	:m_can_delete(false)
 {}
 
-void QSession::SendHandler::HandleComplete ( ULONG_PTR , size_t nIOBytes )
+void QSession::SendHandler::HandleComplete(ULONG_PTR , size_t nIOBytes)
 {
-	assert(nIOBytes <= send_data.size());
+	assert(nIOBytes == send_data.size());
+	//测试时 一次性发送80M 返回时都发送完成 所以应该是发送完成才回调
 	if (nIOBytes == send_data.size())
-	{
-		m_can_delete = true;
 		m_pSession->handleWriteCompleted(true, nIOBytes, (size_t)m_sendBuff.len);
-	}
 	else
-	{
-		if (m_pSession->b_closing_)
-			m_can_delete = true;
-		else
-		{
-			printf("data do not send complete one time, need send again!\n");
-			std::string str(send_data.substr(nIOBytes, send_data.size()));
-			send_data = str;
-			m_can_delete = !m_pSession->StartWriteAgain((SendHandlerOverLapped*)this);
-		}
-	}
+		printf("data do not send complete one time sent: %u total: %u\n", nIOBytes, send_data.size());
 }
 
 void QSession::SendHandler::HandleError ( ULONG_PTR , size_t nIOBytes )
@@ -222,8 +189,7 @@ void QSession::SendHandler::HandleError ( ULONG_PTR , size_t nIOBytes )
 
 void QSession::SendHandler::Destroy()
 {
-	if (m_can_delete)
-		delete this;
+	delete this;
 }
 
 void QSession::RecvHandler::HandleComplete ( ULONG_PTR , size_t nIOBytes )
@@ -286,7 +252,11 @@ QSessionManager::QSessionManager(IocpServicePtr iocpService, TcpSinkPtr tcpSink)
 }
 
 QSessionManager::~QSessionManager()
+{}
+
+void QSessionManager::stop()
 {
+	session_list_.clear();
 }
 
 void QSessionManager::HandleConnecttoOK (SOCKET hSocket, SOCKADDR_IN *localAddr, SOCKADDR_IN *remoteAddr, uint32_t nMaxMsgSize , void *pAtt )

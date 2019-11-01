@@ -1,4 +1,5 @@
 #include "iocp_server.h"
+#include "limit_define.h"
 
 CIocpServerPtr CIocpServer::iocp_server_ = nullptr;
 CIocpServerPtr CIocpServer::get_iocp_server()
@@ -21,11 +22,23 @@ CIocpServer::~CIocpServer()
 void CIocpServer::init(uint16_t port)
 {
 	iocp_engine_ = get_tcp_engine();
-	iocp_engine_->SetListenAddr(819200, port, "0.0.0.0");
+	iocp_engine_->SetListenAddr(MAX_MSG_SIZE, port, "0.0.0.0");
+}
+
+BOOL WINAPI CIocpServer::consoleHandler(DWORD signal)
+{
+	if (signal == CTRL_C_EVENT)
+	{
+		get_tcp_engine()->break_loop();
+	}
+
+	return TRUE;
 }
 
 void CIocpServer::start(accept_cb cb)
 {
+	SetConsoleCtrlHandler(consoleHandler, TRUE);
+
 	accept_cb_ = cb;
 
 	iocp_engine_->start(shared_from_this());
@@ -87,3 +100,5 @@ void CIocpServer::OnConnect(bool isOK, uint32_t session_id, void *pAttData)
 {
 	
 }
+
+

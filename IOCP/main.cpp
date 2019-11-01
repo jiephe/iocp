@@ -1,6 +1,9 @@
 #include "iocp_server.h"
 #include <vector>
 
+#define ONE_M		(1024*1024*8)
+#define TEN_M		(10*ONE_M)
+
 void OnWrite(CIocpServerPtr iocp, uint32_t session_id, int32_t size)
 {
 	printf("session: %u write %d\n", session_id, size);
@@ -20,9 +23,9 @@ void OnRead(CIocpServerPtr iocp, uint32_t session_id, char* data, int32_t size)
 	}
 	else
 	{
-		///for (int i = 0; i < 130; ++i)
+		///for (int i = 0; i < 10; ++i)
 		{
-			std::vector<char> send_data(10000, 'a');
+			std::vector<char> send_data(ONE_M, 'a');
 			iocp->session_write_data(session_id, &send_data[0], send_data.size(), OnWrite);
 		}
 	}
